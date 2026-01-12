@@ -7,6 +7,7 @@ import re
 from fastapi import UploadFile
 from botocore.exceptions import ClientError
 from dotenv import load_dotenv
+from typing import Optional, Union  
 
 load_dotenv()
 
@@ -87,7 +88,7 @@ class HealthScribeService:
         except Exception as e:
             return {"status": "FAILED", "error": str(e)}
 
-    async def call_bedrock_agent(self, transcript: str, patient: dict = None):
+    async def call_bedrock_agent(self, transcript: str, patient: Optional[dict] = None):
         """Sends transcript to Bedrock Agent for medical analysis."""
         bedrock_agent = boto3.client("bedrock-agent-runtime", region_name=self.region)
         
