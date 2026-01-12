@@ -267,7 +267,7 @@ const ConversationChat = () => {
 
       try {
         toast.info("Uploading audio to AWS HealthScribe...");
-        const res = await fetch("http://localhost:8000/healthscribe/upload", {
+        const res = await fetch("https://drrobo.clinic/healthscribe/upload", {
           method: "POST",
           body: formData,
         });
@@ -301,7 +301,7 @@ const ConversationChat = () => {
   const waitForHealthScribe = async (jobName: string) => {
     while (true) {
       const res = await fetch(
-        `http://localhost:8000/healthscribe/status/${jobName}`
+        `https://drrobo.clinic/healthscribe/status/${jobName}`
       );
 
       if (!res.ok) {
@@ -338,7 +338,7 @@ const ConversationChat = () => {
       }
 
       // 2. Call the Bedrock Agent
-      const res = await fetch("http://localhost:8000/healthscribe/agent/analyze", {
+      const res = await fetch("https://drrobo.clinic/healthscribe/agent/analyze", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
