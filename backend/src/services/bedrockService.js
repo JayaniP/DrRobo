@@ -2,12 +2,11 @@ import { BedrockAgentRuntimeClient, InvokeAgentCommand } from "@aws-sdk/client-b
 
 let globalConsultSessionId = null;
 
-const region = import.meta.env.VITE_AWS_REGION;
-const accessKeyId = import.meta.env.VITE_AWS_ACCESS_KEY_ID;
-const secretAccessKey = import.meta.env.VITE_AWS_SECRET_ACCESS_KEY;
-const agentId = import.meta.env.VITE_BEDROCK_AGENT_ID;
-const agentAliasId = import.meta.env.VITE_BEDROCK_AGENT_ALIAS_ID;
-
+const region = import.meta.env.AWS_REGION;
+const accessKeyId = import.meta.env.AWS_ACCESS_KEY_ID;
+const secretAccessKey = import.meta.env.AWS_SECRET_ACCESS_KEY;
+const agentId = import.meta.env.BEDROCK_AGENT_ID;
+const agentAliasId = import.meta.env.BEDROCK_AGENT_ALIAS_ID;
 const client = new BedrockAgentRuntimeClient({
   region: region,      
   credentials: {
