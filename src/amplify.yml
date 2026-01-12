@@ -1,0 +1,6 @@
+frontend:
+  phases:
+    preBuild:
+      commands:
+        - nvm use 20  # Force the build server to use a modern Node version
+        - npm ci

@@ -1,0 +1,182 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Dr. Robo Clinical Assistant Design System */
+
+@layer base {
+  :root {
+    /* Light clinical theme */
+    --background: 210 20% 98%;
+    --foreground: 215 25% 15%;
+
+    --card: 0 0% 100%;
+    --card-foreground: 215 25% 15%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 215 25% 15%;
+
+    /* Medical Blue - Primary actions */
+    --primary: 217 91% 60%;
+    --primary-foreground: 0 0% 100%;
+
+    /* Soft gray backgrounds */
+    --secondary: 210 20% 96%;
+    --secondary-foreground: 215 25% 25%;
+
+    --muted: 210 15% 94%;
+    --muted-foreground: 215 15% 50%;
+
+    /* Teal - AI/Consultation accent */
+    --accent: 168 76% 42%;
+    --accent-foreground: 0 0% 100%;
+
+    /* Red - Alerts and active states */
+    --destructive: 0 72% 51%;
+    --destructive-foreground: 0 0% 100%;
+
+    /* Active/Selected state */
+    --active: 0 85% 96%;
+    --active-border: 0 72% 51%;
+
+    --border: 214 20% 90%;
+    --input: 214 20% 90%;
+    --ring: 217 91% 60%;
+
+    --radius: 0.75rem;
+
+    /* Sidebar */
+    --sidebar-background: 0 0% 100%;
+    --sidebar-foreground: 215 20% 35%;
+    --sidebar-primary: 217 91% 60%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 210 20% 96%;
+    --sidebar-accent-foreground: 215 25% 15%;
+    --sidebar-border: 214 20% 92%;
+    --sidebar-ring: 217 91% 60%;
+
+    /* Custom medical tokens */
+    --vital-good: 142 71% 45%;
+    --vital-warning: 38 92% 50%;
+    --vital-critical: 0 72% 51%;
+    --fidelity: 217 91% 60%;
+
+    /* Shadows */
+    --shadow-soft: 0 2px 8px -2px hsl(215 25% 15% / 0.08);
+    --shadow-card: 0 4px 16px -4px hsl(215 25% 15% / 0.1);
+    --shadow-elevated: 0 8px 24px -8px hsl(215 25% 15% / 0.15);
+
+    /* Typography */
+    --font-sans: 'Inter', system-ui, sans-serif;
+    --font-display: 'Space Grotesk', system-ui, sans-serif;
+  }
+
+  .dark {
+    --background: 215 28% 10%;
+    --foreground: 210 20% 95%;
+
+    --card: 215 25% 14%;
+    --card-foreground: 210 20% 95%;
+
+    --popover: 215 25% 14%;
+    --popover-foreground: 210 20% 95%;
+
+    --primary: 217 91% 60%;
+    --primary-foreground: 0 0% 100%;
+
+    --secondary: 215 25% 18%;
+    --secondary-foreground: 210 20% 90%;
+
+    --muted: 215 25% 20%;
+    --muted-foreground: 215 15% 60%;
+
+    --accent: 168 76% 42%;
+    --accent-foreground: 0 0% 100%;
+
+    --destructive: 0 62% 50%;
+    --destructive-foreground: 0 0% 100%;
+
+    --active: 0 50% 20%;
+    --active-border: 0 72% 51%;
+
+    --border: 215 25% 22%;
+    --input: 215 25% 22%;
+    --ring: 217 91% 60%;
+
+    --sidebar-background: 215 28% 12%;
+    --sidebar-foreground: 210 15% 70%;
+    --sidebar-primary: 217 91% 60%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 215 25% 18%;
+    --sidebar-accent-foreground: 210 20% 95%;
+    --sidebar-border: 215 25% 20%;
+    --sidebar-ring: 217 91% 60%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  html {
+    font-family: var(--font-sans);
+  }
+
+  body {
+    @apply bg-background text-foreground antialiased;
+    font-feature-settings: "cv11", "ss01", "ss03";
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    font-family: var(--font-display);
+  }
+}
+
+@layer components {
+  .medical-card {
+    @apply bg-card rounded-xl border border-border p-4;
+    box-shadow: var(--shadow-card);
+  }
+
+  .medical-card-elevated {
+    @apply bg-card rounded-xl border border-border p-4;
+    box-shadow: var(--shadow-elevated);
+  }
+
+  .nav-item {
+    @apply flex items-center gap-3 px-4 py-3 rounded-lg text-sidebar-foreground font-medium transition-all duration-200;
+  }
+
+  .nav-item:hover {
+    @apply bg-sidebar-accent text-sidebar-accent-foreground;
+  }
+
+  .nav-item-active {
+    @apply bg-active border-2 border-active-border text-destructive;
+  }
+
+  .tool-button {
+    @apply flex flex-col items-center gap-1 p-3 rounded-xl border-2 border-transparent transition-all duration-200;
+  }
+
+  .tool-button:hover {
+    @apply border-accent bg-accent/10;
+  }
+
+  .tool-button-active {
+    @apply border-accent bg-accent/10 text-accent;
+  }
+
+  .vital-badge {
+    @apply inline-flex items-center gap-1 px-2 py-1 rounded-md text-sm font-semibold;
+  }
+
+  .action-button-primary {
+    @apply bg-primary text-primary-foreground px-6 py-2.5 rounded-lg font-semibold shadow-sm transition-all duration-200 hover:brightness-110;
+  }
+
+  .action-button-accent {
+    @apply bg-accent text-accent-foreground px-6 py-2.5 rounded-lg font-semibold shadow-sm transition-all duration-200 hover:brightness-110;
+  }
+}
