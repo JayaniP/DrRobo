@@ -1,0 +1,26 @@
+{
+  "dev": {
+    "awscloudformation": {
+      "AuthRoleName": "amplify-drrobo-dev-2adea-authRole",
+      "UnauthRoleArn": "arn:aws:iam::881757053611:role/amplify-drrobo-dev-2adea-unauthRole",
+      "AuthRoleArn": "arn:aws:iam::881757053611:role/amplify-drrobo-dev-2adea-authRole",
+      "Region": "us-east-1",
+      "DeploymentBucketName": "amplify-drrobo-dev-2adea-deployment",
+      "UnauthRoleName": "amplify-drrobo-dev-2adea-unauthRole",
+      "StackName": "amplify-drrobo-dev-2adea",
+      "StackId": "arn:aws:cloudformation:us-east-1:881757053611:stack/amplify-drrobo-dev-2adea/de383460-efe5-11f0-9776-122ede36a8bb",
+      "AmplifyAppId": "d3eunhxrtcxuee"
+    },
+    "categories": {
+      "function": {
+        "drroboBackend": {
+          "deploymentBucketName": "amplify-drrobo-dev-2adea-deployment",
+          "s3Key": "amplify-builds/drroboBackend-556671414b7452695461-build.zip"
+        }
+      },
+      "api": {
+        "drroboAPI": {}
+      }
+    }
+  }
+}

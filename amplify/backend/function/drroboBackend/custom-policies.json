@@ -1,0 +1,7 @@
+[
+  {
+    "Action": ["bedrock:InvokeModel"],
+    "Resource": ["*"],
+    "Effect": "Allow"
+  }
+]

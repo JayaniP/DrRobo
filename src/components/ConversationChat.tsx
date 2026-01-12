@@ -23,6 +23,7 @@ import type {
 
 import { mapAgentResultToSuggestions } from "@/utils/mapAgentResultToSuggestions";
 
+const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:8000";
 
 // Declare SpeechRecognition types for TypeScript
 interface SpeechRecognitionEvent extends Event {
@@ -267,7 +268,7 @@ const ConversationChat = () => {
 
       try {
         toast.info("Uploading audio to AWS HealthScribe...");
-        const res = await fetch("https://drrobo.clinic/healthscribe/upload", {
+        const res = await fetch(`${API_BASE}/healthscribe/upload`, {
           method: "POST",
           body: formData,
         });
@@ -301,7 +302,7 @@ const ConversationChat = () => {
   const waitForHealthScribe = async (jobName: string) => {
     while (true) {
       const res = await fetch(
-        `https://drrobo.clinic/healthscribe/status/${jobName}`
+        `${API_BASE}/healthscribe/status/${jobName}`
       );
 
       if (!res.ok) {
@@ -338,7 +339,7 @@ const ConversationChat = () => {
       }
 
       // 2. Call the Bedrock Agent
-      const res = await fetch("https://drrobo.clinic/healthscribe/agent/analyze", {
+      const res = await fetch(`${API_BASE}/healthscribe/agent/analyze`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({

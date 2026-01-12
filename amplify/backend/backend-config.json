@@ -1,0 +1,43 @@
+{
+  "api": {
+    "drroboAPI": {
+      "dependsOn": [
+        {
+          "attributes": [
+            "Name",
+            "Arn"
+          ],
+          "category": "function",
+          "resourceName": "drroboBackend"
+        }
+      ],
+      "providerPlugin": "awscloudformation",
+      "service": "API Gateway"
+    }
+  },
+  "function": {
+    "drroboBackend": {
+      "build": true,
+      "providerPlugin": "awscloudformation",
+      "service": "Lambda"
+    }
+  },
+  "parameters": {
+    "AMPLIFY_function_drroboBackend_deploymentBucketName": {
+      "usedBy": [
+        {
+          "category": "function",
+          "resourceName": "drroboBackend"
+        }
+      ]
+    },
+    "AMPLIFY_function_drroboBackend_s3Key": {
+      "usedBy": [
+        {
+          "category": "function",
+          "resourceName": "drroboBackend"
+        }
+      ]
+    }
+  }
+}
