@@ -1,46 +1,41 @@
 import os
+import sys
 from fastapi import FastAPI, Request
 from mangum import Mangum
 
-# 1. Lean Import of HealthScribe Router
+# Add the current directory to sys.path so imports work in Lambda
+sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+
+app = FastAPI(title="Digital Doctor API")
+
+# 1. IMPORT THE ROUTER
 try:
-    from src.api.healthscribe.router import router as healthscribe_router
-except ImportError:
-    print("CRITICAL: HealthScribe router could not be imported.")
+    # We try both common Lambda path structures
+    try:
+        from api.healthscribe.router import router as healthscribe_router
+    except ImportError:
+        from src.api.healthscribe.router import router as healthscribe_router
+except Exception as e:
+    print(f"CRITICAL IMPORT ERROR: {e}")
     healthscribe_router = None
 
-# 2. Initialize FastAPI
-# We set root_path to None initially; Mangum will handle path stripping
-app = FastAPI(
-    title="Digital Doctor API",
-    docs_url="/docs",  # Keeping docs enabled for 1 more test to verify 404
-    redoc_url=None
-)
-
-# 3. DEBUG MIDDLEWARE (Check CloudWatch to see why it 404s)
-@app.middleware("http")
-async def log_requests(request: Request, call_next):
-    path = request.url.path
-    print(f"DEBUG: FastAPI receiving request at: {path}")
-    response = await call_next(request)
-    return response
-
-# 4. Include the Router
-# Ensure this matches your React call: /healthscribe/agent/analyze
+# 2. THE FIX: Include the router WITHOUT a prefix here
+# Because router.py ALREADY has prefix="/healthscribe"
 if healthscribe_router:
     app.include_router(healthscribe_router)
+    print("✅ HealthScribe Router Loaded")
 else:
-    print("WARNING: healthscribe_router is None")
+    print("❌ HealthScribe Router NOT Loaded")
 
-# 5. Base Routes
+# 3. Request Logging (Check CloudWatch for this!)
+@app.middleware("http")
+async def debug_paths(request: Request, call_next):
+    print(f"DEBUG: Request Path Received -> {request.url.path}")
+    return await call_next(request)
+
 @app.get("/")
 async def root():
-    return {"status": "online", "message": "Digital Doctor API"}
+    return {"message": "API is online"}
 
-@app.get("/healthcheck")
-async def healthcheck():
-    return {"status": "healthy"}
-
-# 6. PRODUCTION HANDLER (Fixed for Function URLs)
-# lifespan="off" prevents startup timeouts in Lambda
+# 4. Lambda Handler
 handler = Mangum(app, lifespan="off")
