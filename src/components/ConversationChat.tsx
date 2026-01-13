@@ -22,6 +22,7 @@ import type {
 } from "@/types";
 
 import { mapAgentResultToSuggestions } from "@/utils/mapAgentResultToSuggestions";
+import { normalizeAgentToDiagnosis } from "@/utils/normalizeAgentToDiagnosis";
 
 const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:8000";
 
@@ -323,14 +324,17 @@ const ConversationChat = () => {
       await new Promise((resolve) => setTimeout(resolve, 5000));
     }
   };
-   
+
   const handleAnalyze = async () => {
     try {
       setIsProcessing(true);
       setAnalyzing(true);
 
-      // 1. Determine which transcript to use
-      const transcript = notesText.trim() || 
+      /* =========================
+        1. Build Transcript
+      ========================= */
+      const transcript =
+        notesText.trim() ||
         messages.map(m => `${m.role}: ${m.content}`).join("\n");
 
       if (!transcript.trim()) {
@@ -338,7 +342,9 @@ const ConversationChat = () => {
         return;
       }
 
-      // 2. Call the Bedrock Agent
+      /* =========================
+        2. Call Backend
+      ========================= */
       const res = await fetch(`${API_BASE}/healthscribe/agent/analyze`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -352,20 +358,70 @@ const ConversationChat = () => {
         throw new Error(`Server responded with ${res.status}`);
       }
 
-      // 3. Get the RAW AGENT OUTPUT (The JSON you saw in terminal)
-      const agentResult: AgentResult = await res.json();
-      console.log("1. Raw Backend Data:", agentResult);
+      /* =========================
+        3. RAW JSON (UNSAFE)
+      ========================= */
+      const rawResult = await res.json();
+      console.log("1️⃣ Raw Backend Data:", rawResult);
 
+      /* =========================
+        4. Normalize → AgentResult
+      ========================= */
+      const agentResult: AgentResult = {
+        raw_text: rawResult.raw_text ?? undefined,
+
+        diagnosis: {
+          primary: rawResult.diagnosis?.primary ?? {
+            condition: "Undetermined",
+            confidence: 0.5,
+            rationale: "Insufficient data provided",
+          },
+          symptoms: {
+            primary: rawResult.diagnosis?.symptoms?.primary ?? [],
+            secondary: rawResult.diagnosis?.symptoms?.secondary ?? [],
+          },
+        },
+
+        icd_codes: rawResult.icd_codes ?? [],
+
+        safety: {
+          red_flags: rawResult.safety?.red_flags ?? [],
+          contraindications_found:
+            rawResult.safety?.contraindications_found ?? [],
+        },
+
+        treatment_plan: {
+          immediate: rawResult.treatment_plan?.immediate ?? [],
+          ongoing: rawResult.treatment_plan?.ongoing ?? [],
+          lifestyle: rawResult.treatment_plan?.lifestyle ?? [],
+        },
+
+        follow_ups: rawResult.follow_ups ?? [],
+      };
+
+      console.log("2️⃣ Normalized AgentResult:", agentResult);
+
+      /* =========================
+        5. Convert → DiagnosisResult
+      ========================= */
+      const diagnosisResult = normalizeAgentToDiagnosis(agentResult);
+
+      /* =========================
+        6. Build UI Cards
+      ========================= */
       const mappedSuggestions = mapAgentResultToSuggestions(agentResult);
-      console.log("2. Mapped Suggestions (Cards):", mappedSuggestions);
+      console.log("3️⃣ Mapped Suggestions:", mappedSuggestions);
 
+      /* =========================
+        7. Update Context
+      ========================= */
       setAgentResult({
-        diagnosisResult: agentResult,
-        icdCodes: agentResult.icd_codes ?? [],
+        diagnosisResult,
+        icdCodes: diagnosisResult.icd_codes,
         suggestions: mappedSuggestions,
       });
-      toast.success("Clinical analysis complete.");
 
+      toast.success("Clinical analysis complete.");
     } catch (err) {
       console.error("Analyze failed:", err);
       toast.error("Analysis failed. Please check the backend connection.");

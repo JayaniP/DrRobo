@@ -52,37 +52,43 @@ export interface FollowUp {
    RAW BEDROCK AGENT OUTPUT (The Strict "Input" Contract)
 ===================================================== */
 export interface AgentResult {
-  raw_text?: string; 
-  diagnosis: {
-    primary: {
+  raw_text?: string;
+
+  diagnosis?: {
+    primary?: {
       condition: string;
       confidence: number;
       rationale: string;
     };
-    symptoms: {
-      primary: string[];
-      secondary: string[];
+    symptoms?: {
+      primary?: string[];
+      secondary?: string[];
     };
   };
-  icd_codes: Array<{
+
+  icd_codes?: Array<{
     code: string;
     description: string;
     confidence: number;
   }>;
-  safety: {
-    red_flags: string[];
-    contraindications_found: string[];
+
+  safety?: {
+    red_flags?: string[];
+    contraindications_found?: string[];
   };
-  treatment_plan: {
-    immediate: string[];
-    ongoing: string[];
-    lifestyle: string[];
+
+  treatment_plan?: {
+    immediate?: string[];
+    ongoing?: string[];
+    lifestyle?: string[];
   };
-  follow_ups: Array<{
+
+  follow_ups?: Array<{
     timeframe: string;
     action: string;
   }>;
 }
+
 
 /* =====================================================
    NORMALIZED FRONTEND RESULT (The Flexible "UI" State)
