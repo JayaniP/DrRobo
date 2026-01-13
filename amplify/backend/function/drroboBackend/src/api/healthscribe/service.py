@@ -7,7 +7,8 @@ import re
 from fastapi import UploadFile
 from botocore.exceptions import ClientError
 from dotenv import load_dotenv
-from typing import Optional, Union  
+from typing import Optional, Union
+from botocore.config import Config
 
 load_dotenv()
 
@@ -91,7 +92,8 @@ class HealthScribeService:
 
     async def call_bedrock_agent(self, transcript: str, patient: Optional[dict] = None):
         """Sends transcript to Bedrock Agent and parses the response into structured cards."""
-        bedrock_agent = boto3.client("bedrock-agent-runtime", region_name=self.region)
+        config = Config(read_timeout=60,connect_timeout=60,retries={'max_attempts': 0})
+        bedrock_agent = boto3.client("bedrock-agent-runtime", region_name=self.region, config=config)
         
         # Use the keys exactly as they appear in your AWS Console screenshot
         agent_id = os.getenv("BEDROCK_AGENT_ID") 
