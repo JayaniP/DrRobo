@@ -13,7 +13,7 @@ from botocore.config import Config
 load_dotenv()
 
 class HealthScribeService:
-   def __init__(self):
+    def __init__(self):
         # 1. Use standard AWS Lambda env vars first, then VITE fallback
         self.region = os.environ.get("AWS_REGION", os.environ.get("VITE_AWS_REGION", "us-east-1"))
         
