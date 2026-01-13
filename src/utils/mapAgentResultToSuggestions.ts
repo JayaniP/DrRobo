@@ -2,13 +2,29 @@ import type { AgentResult, FollowUp } from "@/types";
 import type { Suggestion } from "@/context/ClinicalContext";
 
 /**
- * 1. Define the helper ABOVE the main function.
- * This satisfies ts(2304) and removes the need for 'any'.
+ * THE GLOBAL NORMALIZER
+ * Handles everything: strips XML tags, converts single strings to arrays,
+ * and removes "None/NA" hallucinations from the AI.
  */
-function ensureArray(val: string | string[] | undefined | null): string[] {
+function globalNormalize(val: string | string[] | undefined | null): string[] {
   if (!val) return [];
-  if (Array.isArray(val)) return val;
-  return [val];
+  
+  // Convert to array if it's a single string
+  const arrayVal = Array.isArray(val) ? val : [val];
+
+  return arrayVal
+    .map(item => 
+      String(item)
+        .replace(/<[^>]*>/g, '') // Strip XML tags like <codeId>
+        .replace(/\s+/g, ' ')    // Clean extra whitespace
+        .trim()
+    )
+    .filter(item => 
+      item !== "" && 
+      item.toLowerCase() !== "none" && 
+      item.toLowerCase() !== "n/a" &&
+      item.toLowerCase() !== "null"
+    );
 }
 
 export function mapAgentResultToSuggestions(
@@ -19,22 +35,26 @@ export function mapAgentResultToSuggestions(
   /* =========================
      1. Primary Diagnosis
   ========================= */
-  if (result.diagnosis?.primary) {
+  if (result.diagnosis?.primary?.condition) {
     const p = result.diagnosis.primary;
+    // Clean the text even in objects
+    const cleanCondition = p.condition.replace(/<[^>]*>/g, '').trim();
+    const cleanRationale = p.rationale.replace(/<[^>]*>/g, '').trim();
+
     suggestions.push({
       id: crypto.randomUUID(),
       type: "diagnosis",
       title: "Primary Diagnosis",
-      content: `${p.condition}\nRationale: ${p.rationale}`,
+      content: `${cleanCondition}\nRationale: ${cleanRationale}`,
       confidence: Math.round((p.confidence || 0.85) * 100),
       status: "pending",
     });
   }
 
   /* =========================
-     2. Red Flags (Uses ensureArray)
+     2. Red Flags (High Priority)
   ========================= */
-  const redFlags = ensureArray(result.safety?.red_flags);
+  const redFlags = globalNormalize(result.safety?.red_flags);
   if (redFlags.length > 0) {
     suggestions.push({
       id: crypto.randomUUID(),
@@ -47,19 +67,19 @@ export function mapAgentResultToSuggestions(
   }
 
   /* =========================
-     3. Symptoms (Uses ensureArray)
+     3. Symptoms Detected
   ========================= */
-  if (result.diagnosis?.symptoms) {
-    const s = result.diagnosis.symptoms;
-    const primary = ensureArray(s.primary);
-    const secondary = ensureArray(s.secondary);
+  const primarySymp = globalNormalize(result.diagnosis?.symptoms?.primary);
+  const secondarySymp = globalNormalize(result.diagnosis?.symptoms?.secondary);
+  
+  if (primarySymp.length > 0 || secondarySymp.length > 0) {
     suggestions.push({
       id: crypto.randomUUID(),
       type: "diagnosis",
       title: "Symptoms Detected",
       content: [
-        `Primary: ${primary.join(", ") || "None"}`,
-        `Secondary: ${secondary.join(", ") || "None"}`,
+        `Primary: ${primarySymp.join(", ") || "Analysis ongoing"}`,
+        `Secondary: ${secondarySymp.join(", ") || "None"}`,
       ].join("\n"),
       confidence: 85,
       status: "pending",
@@ -67,26 +87,29 @@ export function mapAgentResultToSuggestions(
   }
 
   /* =========================
-     4. ICD-10 Output
+     4. ICD-10 Engine Output
   ========================= */
   result.icd_codes?.forEach((icd) => {
-    suggestions.push({
-      id: crypto.randomUUID(),
-      type: "icd",
-      title: "ICD-10 Classification",
-      content: `${icd.code} — ${icd.description}`,
-      confidence: Math.round((icd.confidence || 0.9) * 100),
-      status: "pending",
-    });
+    if (icd.code) {
+      suggestions.push({
+        id: crypto.randomUUID(),
+        type: "icd",
+        title: "ICD-10 Classification",
+        content: `${icd.code.replace(/<[^>]*>/g, '')} — ${icd.description.replace(/<[^>]*>/g, '')}`,
+        confidence: Math.round((icd.confidence || 0.9) * 100),
+        status: "pending",
+      });
+    }
   });
 
   /* =========================
-     5. Medication Logic
+     5. Medication & Prescriptions
   ========================= */
-  const ongoing = ensureArray(result.treatment_plan?.ongoing);
-  const immediate = ensureArray(result.treatment_plan?.immediate);
-  const medicationLines = ongoing.concat(immediate)
-    .filter((line) => /mg|tablet|capsule|oral|iv|amoxicillin|paracetamol|dose|daily/i.test(line));
+  const ongoing = globalNormalize(result.treatment_plan?.ongoing);
+  const immediate = globalNormalize(result.treatment_plan?.immediate);
+  
+  const medicationLines = [...ongoing, ...immediate]
+    .filter((line) => /mg|tablet|capsule|oral|iv|amoxicillin|paracetamol|dose|daily|take/i.test(line));
 
   if (medicationLines.length > 0) {
     suggestions.push({
@@ -100,9 +123,9 @@ export function mapAgentResultToSuggestions(
   }
 
   /* =========================
-     6. Lifestyle & Follow-Up
+     6. Lifestyle Advice
   ========================= */
-  const lifestyle = ensureArray(result.treatment_plan?.lifestyle);
+  const lifestyle = globalNormalize(result.treatment_plan?.lifestyle);
   if (lifestyle.length > 0) {
     suggestions.push({
       id: crypto.randomUUID(),
@@ -114,14 +137,20 @@ export function mapAgentResultToSuggestions(
     });
   }
 
-  // Type-safe mapping for the FollowUp objects from types.ts
-  if (result.follow_ups?.length) {
+  /* =========================
+     7. Follow-Up Plan
+  ========================= */
+  if (result.follow_ups && result.follow_ups.length > 0) {
     suggestions.push({
       id: crypto.randomUUID(),
       type: "followup",
       title: "Follow-Up Plan",
       content: result.follow_ups
-        .map((f: FollowUp) => `• ${f.action} (${f.timeframe})`)
+        .map((f: FollowUp) => {
+          const action = f.action.replace(/<[^>]*>/g, '').trim();
+          const time = f.timeframe.replace(/<[^>]*>/g, '').trim();
+          return `• ${action} (${time})`;
+        })
         .join("\n"),
       confidence: 90,
       status: "pending",
