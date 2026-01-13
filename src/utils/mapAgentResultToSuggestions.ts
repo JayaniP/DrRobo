@@ -7,6 +7,20 @@ export function mapAgentResultToSuggestions(
   const suggestions: Suggestion[] = [];
 
   /* =========================
+     0. NEW: RAW TEXT FALLBACK (Fixes the Empty Window)
+  ========================= */
+  if ('raw_text' in result && result.raw_text) {
+    suggestions.push({
+      id: crypto.randomUUID(),
+      type: "diagnosis",
+      title: "Clinical Analysis Summary",
+      content: result.raw_text,
+      confidence: 70,
+      status: "pending",
+    });
+  } 
+
+  /* =========================
      1. Primary Diagnosis & Rationale
   ========================= */
   if (result.diagnosis?.primary) {

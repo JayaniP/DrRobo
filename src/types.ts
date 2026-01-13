@@ -52,6 +52,7 @@ export interface FollowUp {
    RAW BEDROCK AGENT OUTPUT (The Strict "Input" Contract)
 ===================================================== */
 export interface AgentResult {
+  raw_text?: string; 
   diagnosis: {
     primary: {
       condition: string;
