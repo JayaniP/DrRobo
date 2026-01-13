@@ -96,8 +96,11 @@ class HealthScribeService:
         bedrock_agent = boto3.client("bedrock-agent-runtime", region_name=self.region, config=config)
         
         # Use the keys exactly as they appear in your AWS Console screenshot
-        agent_id = os.getenv("BEDROCK_AGENT_ID") 
-        agent_alias_id = os.getenv("BEDROCK_AGENT_ALIAS_ID")
+        agent_alias_id = "TSTALIASID"
+        agent_id = "ATIZTNVR2Y"
+
+       # agent_id = os.getenv("BEDROCK_AGENT_ID") 
+       # agent_alias_id = os.getenv("BEDROCK_AGENT_ALIAS_ID")
 
         prompt = f"Patient context: {json.dumps(patient) if patient else 'None'}. Transcript: {transcript}"
 
