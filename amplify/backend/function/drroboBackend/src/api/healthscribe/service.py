@@ -15,13 +15,13 @@ load_dotenv()
 class HealthScribeService:
     def __init__(self):
         # Using a fallback to ensure it doesn't crash if env vars are missing
-        self.region = "us-east-1"
+        self.region = os.getenv("VITE_AWS_REGION")
         self.transcribe = boto3.client("transcribe", region_name=self.region)
         self.s3 = boto3.client("s3", region_name=self.region)
         
         # This should match your Amplify storage or manual bucket
         self.bucket = "ia-digital-doctor-scribe"
-        self.scribe_role_arn = os.getenv("HEALTHSCRIBE_ROLE_ARN")
+        self.scribe_role_arn = os.getenv("VITE_AWS_BC_ARN")
 
     async def process_audio(self, audio_file: UploadFile):
         """Uploads audio to S3 and starts a HealthScribe Job."""
@@ -94,13 +94,9 @@ class HealthScribeService:
         """Sends transcript to Bedrock Agent and parses the response into structured cards."""
         config = Config(read_timeout=60,connect_timeout=60,retries={'max_attempts': 0})
         bedrock_agent = boto3.client("bedrock-agent-runtime", region_name=self.region, config=config)
-        
-        # Use the keys exactly as they appear in your AWS Console screenshot
-        agent_alias_id = "TSTALIASID"
-        agent_id = "ATIZTNVR2Y"
 
-       # agent_id = os.getenv("BEDROCK_AGENT_ID") 
-       # agent_alias_id = os.getenv("BEDROCK_AGENT_ALIAS_ID")
+        agent_id = os.getenv("VITE_BEDROCK_AGENT_ID") 
+        agent_alias_id = os.getenv("VITE_BEDROCK_AGENT_ALIAS_ID")
 
         prompt = f"Patient context: {json.dumps(patient) if patient else 'None'}. Transcript: {transcript}"
 
