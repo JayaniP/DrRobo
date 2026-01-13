@@ -34,9 +34,10 @@ origins = [
     "https://www.drrobo.clinic"
 ]
 
+# This must be defined BEFORE your routes
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=origins,
+    allow_origins=["https://drrobo.clinic"], 
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

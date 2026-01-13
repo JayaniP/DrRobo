@@ -15,7 +15,7 @@
       "function": {
         "drroboBackend": {
           "deploymentBucketName": "amplify-drrobo-dev-2adea-deployment",
-          "s3Key": "amplify-builds/drroboBackend-66674c797950696a674e-build.zip"
+          "s3Key": "amplify-builds/drroboBackend-3871777464472b544730-build.zip"
         }
       },
       "api": {
