@@ -354,18 +354,16 @@ const ConversationChat = () => {
 
       // 3. Get the RAW AGENT OUTPUT (The JSON you saw in terminal)
       const agentResult: AgentResult = await res.json();
-      console.log("Bedrock Agent Result Received:", agentResult);
+      console.log("1. Raw Backend Data:", agentResult);
 
-      // 4. CRITICAL STEP: Use the Mapper and update the Context
-      // This is what makes the cards appear in the DrRoboAssistant window
       const mappedSuggestions = mapAgentResultToSuggestions(agentResult);
-      
-      setAgentResult({
-        diagnosisResult: agentResult, // Saves the raw data for safety checks
-        icdCodes: agentResult.icd_codes ?? [], // Populates the ICD-10 list
-        suggestions: mappedSuggestions, // <--- THIS TRIGGERS THE UI CARDS
-      });
+      console.log("2. Mapped Suggestions (Cards):", mappedSuggestions);
 
+      setAgentResult({
+        diagnosisResult: agentResult,
+        icdCodes: agentResult.icd_codes ?? [],
+        suggestions: mappedSuggestions,
+      });
       toast.success("Clinical analysis complete.");
 
     } catch (err) {
