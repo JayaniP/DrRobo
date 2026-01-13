@@ -9,6 +9,7 @@ from botocore.exceptions import ClientError
 from dotenv import load_dotenv
 from typing import Optional, Union
 from botocore.config import Config
+from typing import Optional, Dict, Any
 
 load_dotenv()
 
