@@ -14,7 +14,7 @@ load_dotenv()
 class HealthScribeService:
     def __init__(self):
         # Using a fallback to ensure it doesn't crash if env vars are missing
-        self.region = os.getenv("AWS_REGION", "us-east-1")
+        self.region = "us-east-1"
         self.transcribe = boto3.client("transcribe", region_name=self.region)
         self.s3 = boto3.client("s3", region_name=self.region)
         
@@ -94,8 +94,8 @@ class HealthScribeService:
         bedrock_agent = boto3.client("bedrock-agent-runtime", region_name=self.region)
         
         # Use the keys exactly as they appear in your AWS Console screenshot
-        agent_id = os.getenv("VITE_BEDROCK_AGENT_ID") 
-        agent_alias_id = os.getenv("VITE_BEDROCK_AGENT_ALIAS_ID")
+        agent_id = os.getenv("BEDROCK_AGENT_ID") 
+        agent_alias_id = os.getenv("BEDROCK_AGENT_ALIAS_ID")
 
         prompt = f"Patient context: {json.dumps(patient) if patient else 'None'}. Transcript: {transcript}"
 
