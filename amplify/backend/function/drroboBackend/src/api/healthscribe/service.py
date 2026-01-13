@@ -92,6 +92,7 @@ class HealthScribeService:
         """Sends transcript to Bedrock Agent for medical analysis."""
         bedrock_agent = boto3.client("bedrock-agent-runtime", region_name=self.region)
         
+        # FIX 1: Ensure you remove "VITE_" prefix if you haven't renamed them in AWS Console
         agent_id = os.getenv("BEDROCK_AGENT_ID")
         agent_alias_id = os.getenv("BEDROCK_AGENT_ALIAS_ID")
 
@@ -110,16 +111,42 @@ class HealthScribeService:
                 if "chunk" in event:
                     completion += event["chunk"]["bytes"].decode("utf-8")
 
-            # JSON Cleanup logic
+            # FIX 2: Better JSON extraction
             json_match = re.search(r'\{.*\}', completion, re.DOTALL)
             if json_match:
-                return json.loads(json_match.group())
+                try:
+                    parsed_json = json.loads(json_match.group())
+                    # Add the raw text to the object just in case we need it
+                    parsed_json["raw_text"] = completion 
+                    return parsed_json
+                except json.JSONDecodeError:
+                    pass # Fall through to the raw_text return
             
-            return {"raw_text": completion}
+            # FIX 3: Structured Fallback 
+            # (This ensures the frontend mapper sees 'diagnosis' and doesn't show a blank screen)
+            return {
+                "raw_text": completion,
+                "diagnosis": {
+                    "primary": {
+                        "condition": "Manual Review Required",
+                        "confidence": 0.5,
+                        "rationale": "The AI provided an unstructured response. Please see raw text."
+                    }
+                }
+            }
 
         except Exception as e:
-            print(f"⚠️ Bedrock Agent Fallback Triggered: {e}")
-            return {"error": "Agent failed, providing mock assessment", "diagnosis": "Pending Review"}
+            print(f"⚠️ Bedrock Agent Error: {e}")
+            return {
+                "error": str(e),
+                "diagnosis": {
+                    "primary": {
+                        "condition": "System Error",
+                        "confidence": 0,
+                        "rationale": "Check AWS Lambda logs for Agent ID validation."
+                    }
+                }
+            }
 
     def normalize_healthscribe_output(self, raw_output: dict):
         """Extracts text from the complex HealthScribe JSON."""
