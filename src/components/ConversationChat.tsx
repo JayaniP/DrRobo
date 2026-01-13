@@ -323,6 +323,24 @@ const ConversationChat = () => {
       await new Promise((resolve) => setTimeout(resolve, 5000));
     }
   };
+
+  const sanitize = (val) => {
+    if (typeof val === 'string') {
+      // Removes XML tags like <codeId> and extra whitespace
+      return val.replace(/<[^>]*>/g, '').trim();
+    }
+    if (Array.isArray(val)) {
+      return val.map(sanitize);
+    }
+    if (val !== null && typeof val === 'object') {
+      const newObj = {};
+      for (const key in val) {
+        newObj[key] = sanitize(val[key]);
+      }
+      return newObj;
+    }
+    return val;
+  };
    
   const handleAnalyze = async () => {
     try {
@@ -352,20 +370,22 @@ const ConversationChat = () => {
         throw new Error(`Server responded with ${res.status}`);
       }
 
-      // 3. Get the RAW AGENT OUTPUT (The JSON you saw in terminal)
-      const agentResult: AgentResult = await res.json();
-      console.log("Bedrock Agent Result Received:", agentResult);
+     // 3. Get the RAW AGENT OUTPUT
+      const rawAgentResult: AgentResult = await res.json();
+      
+      // --- NEW: SANITIZATION LAYER ---
+      const agentResult = sanitize(rawAgentResult); 
+      console.log("Sanitized Agent Result:", agentResult);
+      // -------------------------------
 
-      // 4. CRITICAL STEP: Use the Mapper and update the Context
-      // This is what makes the cards appear in the DrRoboAssistant window
+      // 4. CRITICAL STEP: Use the Mapper with CLEAN data
       const mappedSuggestions = mapAgentResultToSuggestions(agentResult);
       
       setAgentResult({
-        diagnosisResult: agentResult, // Saves the raw data for safety checks
-        icdCodes: agentResult.icd_codes ?? [], // Populates the ICD-10 list
-        suggestions: mappedSuggestions, // <--- THIS TRIGGERS THE UI CARDS
+        diagnosisResult: agentResult, 
+        icdCodes: agentResult.icd_codes ?? [], 
+        suggestions: mappedSuggestions, 
       });
-
       toast.success("Clinical analysis complete.");
 
     } catch (err) {
