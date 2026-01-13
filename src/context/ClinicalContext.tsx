@@ -102,7 +102,7 @@ const ClinicalContext = createContext<ClinicalContextType | null>(null);
       []
     );
 
-    const setAgentResult = useCallback((result: {
+   const setAgentResult = useCallback((result: {
       diagnosisResult: DiagnosisResult;
       icdCodes?: ICDCode[];
       suggestions?: Suggestion[];
@@ -110,14 +110,14 @@ const ClinicalContext = createContext<ClinicalContextType | null>(null);
       setState(prev => ({
         ...prev,
         diagnosisResult: result.diagnosisResult,
-        icdCodes: result.icdCodes || prev.icdCodes,
-        suggestions: result.suggestions || prev.suggestions,
+        // CHANGE: Default to [] instead of prev.icdCodes to ensure a clean UI
+        icdCodes: result.icdCodes || [], 
+        suggestions: result.suggestions || [],
         isAnalyzing: false,
       }));
 
       toast.success('Dr Robo analysis ready for review');
     }, []);
-
   /* ================================
      Doctor Actions
 ================================ */

@@ -42,6 +42,7 @@ const DrRoboAssistant = () => {
 
   const getIcon = (type: string) => {
     switch (type) {
+      case "warning": return <AlertTriangle className="w-4 h-4" />; // ✅ Add this
       case "icd": return <Code className="w-4 h-4" />;
       case "diagnosis": return <Stethoscope className="w-4 h-4" />;
       case "prescription": return <Pill className="w-4 h-4" />;
@@ -51,16 +52,17 @@ const DrRoboAssistant = () => {
     }
   };
 
-  const getTypeColor = (type: string) => {
-    switch (type) {
-      case "icd": return "bg-primary/10 text-primary border-primary/20";
-      case "diagnosis": return "bg-accent/10 text-accent border-accent/20";
-      case "prescription": return "bg-destructive/10 text-destructive border-destructive/20";
-      case "treatment": return "bg-vital-good/10 text-vital-good border-vital-good/20";
-      case "followup": return "bg-vital-warning/10 text-vital-warning border-vital-warning/20";
-      default: return "bg-muted text-muted-foreground border-border";
-    }
-  };
+ const getTypeColor = (type: string) => {
+  switch (type) {
+    case "warning": return "bg-destructive/10 text-destructive border-destructive/20"; // ✅ Add this
+    case "icd": return "bg-primary/10 text-primary border-primary/20";
+    case "diagnosis": return "bg-accent/10 text-accent border-accent/20";
+    case "prescription": return "bg-destructive/10 text-destructive border-destructive/20";
+    case "treatment": return "bg-vital-good/10 text-vital-good border-vital-good/20";
+    case "followup": return "bg-vital-warning/10 text-vital-warning border-vital-warning/20";
+    default: return "bg-muted text-muted-foreground border-border";
+  }
+};
 
   const getStatusBadge = (status: string) => {
     switch (status) {
