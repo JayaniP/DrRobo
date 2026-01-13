@@ -5,7 +5,6 @@ from annotated_doc import Doc
 from fastapi import params
 from fastapi._compat import Undefined
 from fastapi.openapi.models import Example
-from pydantic import AliasChoices, AliasPath
 from typing_extensions import Literal, deprecated
 
 _Unset: Any = Undefined
@@ -55,8 +54,10 @@ def Path(  # noqa: N802
             """
         ),
     ] = _Unset,
+    # TODO: update when deprecating Pydantic v1, import these types
+    # validation_alias: str | AliasPath | AliasChoices | None
     validation_alias: Annotated[
-        Union[str, AliasPath, AliasChoices, None],
+        Union[str, None],
         Doc(
             """
             'Whitelist' validation step. The parameter field will be the single one
@@ -378,8 +379,10 @@ def Query(  # noqa: N802
             """
         ),
     ] = _Unset,
+    # TODO: update when deprecating Pydantic v1, import these types
+    # validation_alias: str | AliasPath | AliasChoices | None
     validation_alias: Annotated[
-        Union[str, AliasPath, AliasChoices, None],
+        Union[str, None],
         Doc(
             """
             'Whitelist' validation step. The parameter field will be the single one
@@ -680,8 +683,10 @@ def Header(  # noqa: N802
             """
         ),
     ] = _Unset,
+    # TODO: update when deprecating Pydantic v1, import these types
+    # validation_alias: str | AliasPath | AliasChoices | None
     validation_alias: Annotated[
-        Union[str, AliasPath, AliasChoices, None],
+        Union[str, None],
         Doc(
             """
             'Whitelist' validation step. The parameter field will be the single one
@@ -994,8 +999,10 @@ def Cookie(  # noqa: N802
             """
         ),
     ] = _Unset,
+    # TODO: update when deprecating Pydantic v1, import these types
+    # validation_alias: str | AliasPath | AliasChoices | None
     validation_alias: Annotated[
-        Union[str, AliasPath, AliasChoices, None],
+        Union[str, None],
         Doc(
             """
             'Whitelist' validation step. The parameter field will be the single one
@@ -1319,8 +1326,10 @@ def Body(  # noqa: N802
             """
         ),
     ] = _Unset,
+    # TODO: update when deprecating Pydantic v1, import these types
+    # validation_alias: str | AliasPath | AliasChoices | None
     validation_alias: Annotated[
-        Union[str, AliasPath, AliasChoices, None],
+        Union[str, None],
         Doc(
             """
             'Whitelist' validation step. The parameter field will be the single one
@@ -1632,8 +1641,10 @@ def Form(  # noqa: N802
             """
         ),
     ] = _Unset,
+    # TODO: update when deprecating Pydantic v1, import these types
+    # validation_alias: str | AliasPath | AliasChoices | None
     validation_alias: Annotated[
-        Union[str, AliasPath, AliasChoices, None],
+        Union[str, None],
         Doc(
             """
             'Whitelist' validation step. The parameter field will be the single one
@@ -1944,8 +1955,10 @@ def File(  # noqa: N802
             """
         ),
     ] = _Unset,
+    # TODO: update when deprecating Pydantic v1, import these types
+    # validation_alias: str | AliasPath | AliasChoices | None
     validation_alias: Annotated[
-        Union[str, AliasPath, AliasChoices, None],
+        Union[str, None],
         Doc(
             """
             'Whitelist' validation step. The parameter field will be the single one

@@ -1,4 +1,4 @@
-from collections.abc import Mapping
+from collections.abc import Iterable
 from typing import (
     Annotated,
     Any,
@@ -10,7 +10,11 @@ from typing import (
 )
 
 from annotated_doc import Doc
-from pydantic import GetJsonSchemaHandler
+from fastapi._compat import (
+    CoreSchema,
+    GetJsonSchemaHandler,
+    JsonSchemaValue,
+)
 from starlette.datastructures import URL as URL  # noqa: F401
 from starlette.datastructures import Address as Address  # noqa: F401
 from starlette.datastructures import FormData as FormData  # noqa: F401
@@ -132,21 +136,36 @@ class UploadFile(StarletteUploadFile):
         return await super().close()
 
     @classmethod
+    def __get_validators__(cls: type["UploadFile"]) -> Iterable[Callable[..., Any]]:
+        yield cls.validate
+
+    @classmethod
+    def validate(cls: type["UploadFile"], v: Any) -> Any:
+        if not isinstance(v, StarletteUploadFile):
+            raise ValueError(f"Expected UploadFile, received: {type(v)}")
+        return v
+
+    @classmethod
     def _validate(cls, __input_value: Any, _: Any) -> "UploadFile":
         if not isinstance(__input_value, StarletteUploadFile):
             raise ValueError(f"Expected UploadFile, received: {type(__input_value)}")
         return cast(UploadFile, __input_value)
 
+    # TODO: remove when deprecating Pydantic v1
+    @classmethod
+    def __modify_schema__(cls, field_schema: dict[str, Any]) -> None:
+        field_schema.update({"type": "string", "format": "binary"})
+
     @classmethod
     def __get_pydantic_json_schema__(
-        cls, core_schema: Mapping[str, Any], handler: GetJsonSchemaHandler
-    ) -> dict[str, Any]:
+        cls, core_schema: CoreSchema, handler: GetJsonSchemaHandler
+    ) -> JsonSchemaValue:
         return {"type": "string", "format": "binary"}
 
     @classmethod
     def __get_pydantic_core_schema__(
-        cls, source: type[Any], handler: Callable[[Any], Mapping[str, Any]]
-    ) -> Mapping[str, Any]:
+        cls, source: type[Any], handler: Callable[[Any], CoreSchema]
+    ) -> CoreSchema:
         from ._compat.v2 import with_info_plain_validator_function
 
         return with_info_plain_validator_function(cls._validate)
