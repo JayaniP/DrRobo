@@ -3,55 +3,70 @@ import type { Suggestion } from "@/context/ClinicalContext";
 
 /**
  * THE GLOBAL NORMALIZER (Deep Cleaning Engine)
- * This function handles the "Unexpected any" error by using 'unknown'.
+ * Replaces 'any' with 'unknown' to satisfy ESLint.
+ * Strips <tags>, [citations], and filters out "None/NA" hallucinations.
  */
-function globalNormalize(val: unknown): string[] {
+function globalClean(val: unknown): string[] {
   if (!val) return [];
   
-  // Convert unknown input to an array safely
   const arrayVal = Array.isArray(val) ? val : [val];
 
   return arrayVal
     .map(item => 
       String(item)
-        .replace(/<[^>]*>/g, '') // DEEP CLEAN: Removes Bedrock XML tags
-        .replace(/\s+/g, ' ')    // DEEP CLEAN: Fixes spacing
+        .replace(/<[^>]*>/g, '') // Remove XML tags
+        .replace(/\[\d+\]/g, '') // Remove [1] citations
+        .replace(/\s+/g, ' ')    // Clean extra spaces
         .trim()
     )
-    .filter(item => 
+    .filter((item): item is string => 
       item !== "" && 
-      // DEEP CLEAN: Filters out "None", "N/A", and "Undefined" hallucinations
       !/^(none|n\/a|null|undefined|no acute symptoms|nothing detected)$/i.test(item)
     );
 }
 
-export function mapAgentResultToSuggestions(
-  result: AgentResult
-): Suggestion[] {
+export function mapAgentResultToSuggestions(rawInput: unknown): Suggestion[] {
+  let result: AgentResult;
+
+  // 1. SAFE EXTRACTION: Handle strings or objects from Bedrock
+  try {
+    if (typeof rawInput === 'string') {
+      const jsonMatch = rawInput.match(/\{[\s\S]*\}/);
+      result = jsonMatch ? JSON.parse(jsonMatch[0]) : JSON.parse(rawInput);
+    } else if (rawInput !== null && typeof rawInput === 'object') {
+      result = rawInput as AgentResult;
+    } else {
+      return [];
+    }
+  } catch (e) {
+    console.error("Mapping Error:", e);
+    return [];
+  }
+
   const suggestions: Suggestion[] = [];
 
   /* ===================================================
-     1. Primary Diagnosis
+     1. PRIMARY DIAGNOSIS
   =================================================== */
-  if (result.diagnosis?.primary?.condition) {
-    const p = result.diagnosis.primary;
-    const cleanCondition = p.condition.replace(/<[^>]*>/g, '').trim();
-    const cleanRationale = p.rationale?.replace(/<[^>]*>/g, '').trim() || "Analysis complete.";
+  const primary = result.diagnosis?.primary;
+  if (primary?.condition) {
+    const cleanCondition = primary.condition.replace(/<[^>]*>/g, '').trim();
+    const cleanRationale = primary.rationale?.replace(/<[^>]*>/g, '').trim() || "Analyzed from clinical transcript.";
 
     suggestions.push({
       id: crypto.randomUUID(),
       type: "diagnosis",
       title: "Primary Diagnosis",
       content: `${cleanCondition}\n\nRationale: ${cleanRationale}`,
-      confidence: Math.round((p.confidence || 0.85) * 100),
+      confidence: Math.round((primary.confidence || 0.85) * 100),
       status: "pending",
     });
   }
 
   /* ===================================================
-     2. Red Flags (High Priority)
+     2. CLINICAL RED FLAGS (High Priority)
   =================================================== */
-  const redFlags = globalNormalize(result.safety?.red_flags);
+  const redFlags = globalClean(result.safety?.red_flags);
   if (redFlags.length > 0) {
     suggestions.push({
       id: crypto.randomUUID(),
@@ -64,10 +79,10 @@ export function mapAgentResultToSuggestions(
   }
 
   /* ===================================================
-     3. Symptoms (Deep Cleaned to prevent "None" cards)
+     3. SYMPTOMS DETECTED (Detailed breakdown)
   =================================================== */
-  const primarySymp = globalNormalize(result.diagnosis?.symptoms?.primary);
-  const secondarySymp = globalNormalize(result.diagnosis?.symptoms?.secondary);
+  const primarySymp = globalClean(result.diagnosis?.symptoms?.primary);
+  const secondarySymp = globalClean(result.diagnosis?.symptoms?.secondary);
   
   if (primarySymp.length > 0 || secondarySymp.length > 0) {
     const lines: string[] = [];
@@ -85,7 +100,7 @@ export function mapAgentResultToSuggestions(
   }
 
   /* ===================================================
-     4. ICD-10 Engine Output
+     4. ICD-10 CLASSIFICATION
   =================================================== */
   result.icd_codes?.forEach((icd) => {
     const cleanCode = icd.code?.replace(/<[^>]*>/g, '').trim();
@@ -95,7 +110,7 @@ export function mapAgentResultToSuggestions(
       suggestions.push({
         id: crypto.randomUUID(),
         type: "icd",
-        title: "ICD-10 Classification",
+        title: "ICD-10 Code",
         content: `${cleanCode} — ${cleanDesc}`,
         confidence: Math.round((icd.confidence || 0.9) * 100),
         status: "pending",
@@ -104,9 +119,45 @@ export function mapAgentResultToSuggestions(
   });
 
   /* ===================================================
-     5. Medication & Lifestyle (Merged Logic)
+     5. MANAGEMENT & TREATMENT (Prescriptions/Immediate)
   =================================================== */
-  const lifestyle = globalNormalize(result.treatment_plan?.lifestyle);
+  const immediate = globalClean(result.treatment_plan?.immediate);
+  const ongoing = globalClean(result.treatment_plan?.ongoing);
+  
+  const allTreatments = [...new Set([...immediate, ...ongoing])];
+
+  if (allTreatments.length > 0) {
+    // Separate medications from general actions if they contain dosage words
+    const meds = allTreatments.filter(t => /mg|tablet|capsule|iv|oral|daily|take|dose/i.test(t));
+    const nonMeds = allTreatments.filter(t => !/mg|tablet|capsule|iv|oral|daily|take|dose/i.test(t));
+
+    if (meds.length > 0) {
+      suggestions.push({
+        id: crypto.randomUUID(),
+        type: "prescription",
+        title: "Prescription Suggestions",
+        content: meds.map(m => `• ${m}`).join("\n"),
+        confidence: 95,
+        status: "pending",
+      });
+    }
+
+    if (nonMeds.length > 0) {
+      suggestions.push({
+        id: crypto.randomUUID(),
+        type: "treatment",
+        title: "Immediate Management",
+        content: nonMeds.map(t => `• ${t}`).join("\n"),
+        confidence: 90,
+        status: "pending",
+      });
+    }
+  }
+
+  /* ===================================================
+     6. LIFESTYLE ADVICE
+  =================================================== */
+  const lifestyle = globalClean(result.treatment_plan?.lifestyle);
   if (lifestyle.length > 0) {
     suggestions.push({
       id: crypto.randomUUID(),
@@ -119,7 +170,7 @@ export function mapAgentResultToSuggestions(
   }
 
   /* ===================================================
-     6. Follow-Up Plan
+     7. FOLLOW-UP PLAN
   =================================================== */
   if (result.follow_ups && result.follow_ups.length > 0) {
     const validFollowUps = result.follow_ups
