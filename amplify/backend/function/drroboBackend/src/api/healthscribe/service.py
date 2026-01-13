@@ -13,15 +13,20 @@ from botocore.config import Config
 load_dotenv()
 
 class HealthScribeService:
-    def __init__(self):
-        # Using a fallback to ensure it doesn't crash if env vars are missing
-        self.region = os.environ.get("VITE_AWS_REGION", "us-east-1") 
+   def __init__(self):
+        # 1. Use standard AWS Lambda env vars first, then VITE fallback
+        self.region = os.environ.get("AWS_REGION", os.environ.get("VITE_AWS_REGION", "us-east-1"))
+        
+        # 2. Initialize clients
         self.transcribe = boto3.client("transcribe", region_name=self.region)
         self.s3 = boto3.client("s3", region_name=self.region)
+        self.bedrock_agent = boto3.client("bedrock-agent-runtime", region_name=self.region)
       
-        # This should match your Amplify storage or manual bucket
+        # 3. Environment Variable Mapping
         self.bucket = "ia-digital-doctor-scribe"
         self.scribe_role_arn = os.getenv("VITE_AWS_BC_ARN")
+        self.agent_id = os.getenv("VITE_BEDROCK_AGENT_ID")
+        self.agent_alias_id = os.getenv("VITE_BEDROCK_AGENT_ALIAS_ID")
 
     async def process_audio(self, audio_file):
             try:
@@ -60,58 +65,70 @@ class HealthScribeService:
                 # For the demo: If Scribe fails, don't crash the whole app
                 return {"status": "error", "message": str(e), "s3_path": s3_key}
 
+
+    def extract_json_from_text(self, text: str) -> Optional[Dict[str, Any]]:
+        """
+        Uses Regex to find the JSON block even if the Agent included conversational text.
+        """
+        try:
+            # Matches everything between the first { and the last }
+            match = re.search(r'(\{.*\})', text, re.DOTALL)
+            if match:
+                return json.loads(match.group(1))
+            return None
+        except Exception as e:
+            print(f"Regex JSON Extract Error: {e}")
+            return None
+
+
     async def call_bedrock_agent(self, transcript: str, patient: dict | None = None):
-            bedrock_agent = boto3.client(
-                "bedrock-agent-runtime",
-                region_name=self.region
+        # Generate a unique session ID for every call
+        session_id = str(uuid.uuid4())
+        
+        # 4. STRONG PROMPT: Force JSON and tell the Agent NOT to talk
+        prompt = (
+            f"TRANSCRIPT: {transcript}\n\n"
+            f"TASK: Analyze the transcript and return ONLY a JSON object. "
+            f"DO NOT include any text before or after the JSON."
+        )
+
+        try:
+            response = self.bedrock_agent.invoke_agent(
+                agentId=self.agent_id,
+                agentAliasId=self.agent_alias_id,
+                sessionId=session_id,
+                inputText=prompt
             )
 
-            AGENT_ID = os.getenv("VITE_BEDROCK_AGENT_ID")
-            AGENT_ALIAS_ID = os.getenv("VITE_BEDROCK_AGENT_ALIAS_ID")
+            completion = ""
+            for event in response.get("completion", []):
+                if "chunk" in event:
+                    completion += event["chunk"]["bytes"].decode("utf-8")
 
-            # Simplified prompt to reduce AI confusion
-            prompt = f"Analyze this clinical transcript and return JSON: {transcript}"
+            print(f"RAW AGENT OUTPUT (PROD): {completion}")
 
-            try:
-                response = bedrock_agent.invoke_agent(
-                    agentId=AGENT_ID,
-                    agentAliasId=AGENT_ALIAS_ID,
-                    sessionId=str(uuid.uuid4()),
-                    inputText=prompt
-                )
+            # 5. USE THE REGEX EXTRACTOR (Much safer for Production)
+            parsed_data = self.extract_json_from_text(completion)
+            
+            if parsed_data:
+                return parsed_data
+            
+            raise ValueError("Agent response contained no valid JSON structure.")
 
-                completion = ""
-                for event in response.get("completion", []):
-                    if "chunk" in event:
-                        completion += event["chunk"]["bytes"].decode("utf-8")
+        except Exception as e:
+            print(f"Agent Execution/Parsing Failed: {e}")
+            # 6. HARDENED FALLBACK (Matches your React UI expectations)
+            return {
+                "diagnosis": {
+                    "primary": {"condition": "Analysis Error", "confidence": 0, "rationale": str(e)},
+                    "symptoms": {"primary": [], "secondary": []}
+                },
+                "icd_codes": [],
+                "safety": {"red_flags": ["System was unable to parse AI response"], "contraindications_found": []},
+                "treatment_plan": {"immediate": ["Please review raw logs"], "ongoing": [], "lifestyle": []},
+                "follow_ups": []
+            }
 
-                print("RAW AGENT OUTPUT:", completion)
-
-                # ✅ Clean the JSON string (removes markdown backticks)
-                json_text = completion.replace("```json", "").replace("```", "").strip()
-                
-                # Find the first { and last }
-                start = json_text.find("{")
-                end = json_text.rfind("}") + 1
-                if start != -1 and end != 0:
-                    return json.loads(json_text[start:end])
-                
-                raise ValueError("No JSON found in response")
-
-            except Exception as e:
-                print(f"Agent Error, using Fallback: {e}")
-                # ✅ FALLBACK: Must include 'safety' to prevent React errors
-                return {
-                    "diagnosis": {
-                        "primary": {"condition": "Acute Respiratory Infection", "confidence": 0.8, "rationale": "Demo Fallback"}
-                    },
-                    "icd_codes": [{"code": "J06.9", "description": "Infection", "confidence": 0.9}],
-                    "safety": {"red_flags": [], "contraindications_found": []},
-                    "treatment_plan": {"immediate": ["Rest", "Fluids"]},
-                    "follow_ups": []
-                }
-    
-    
     def normalize_healthscribe_output(self, raw_output: dict):
             """
             Convert AWS HealthScribe output into clean SOAP notes
