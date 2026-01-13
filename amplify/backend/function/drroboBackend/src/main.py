@@ -1,5 +1,5 @@
 from fastapi import FastAPI
-from fastapi.middleware.cors import CORSMiddleware
+# Removed CORSMiddleware import as it's now handled by AWS infrastructure
 from dotenv import load_dotenv
 from mangum import Mangum
 import os
@@ -9,7 +9,6 @@ load_dotenv()
 
 # Attempt to import the HealthScribe router
 try:
-    # Ensure your folder structure has api/__init__.py and healthscribe/__init__.py
     from api.healthscribe.router import router as healthscribe_router
 except (ImportError, ModuleNotFoundError) as e:
     print(f"⚠️ HealthScribe router import failed: {e}")
@@ -23,25 +22,9 @@ app = FastAPI(
     version="1.0.0"
 )
 
-# --- CORS CONFIGURATION ---
-# This allows your React frontend to talk to this API
-origins = [
-    "http://localhost:5173",    # Standard Vite port
-    "http://localhost:8080",
-    "http://127.0.0.1:5173",
-    "http://127.0.0.1:8080",
-    "https://drrobo.clinic",     # Production Frontend
-    "https://www.drrobo.clinic"
-]
-
-# This must be defined BEFORE your routes
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["https://drrobo.clinic"], 
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+# --- IMPORTANT: CORS IS NOW HANDLED BY AWS LAMBDA CONSOLE ---
+# We have removed the app.add_middleware(CORSMiddleware) block from here
+# to prevent the "Multiple values for Access-Control-Allow-Origin" error.
 
 # --- ROUTER INCLUSION ---
 if healthscribe_router:
@@ -70,5 +53,4 @@ async def healthcheck():
     }
 
 # --- AWS LAMBDA HANDLER ---
-# Mangum acts as the bridge between AWS Lambda/API Gateway and FastAPI
 handler = Mangum(app, lifespan="off")
