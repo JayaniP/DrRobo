@@ -6,7 +6,7 @@ const region = import.meta.env.VITE_AWS_REGION;
 const accessKeyId = import.meta.env.VITE_AWS_ACCESS_KEY_ID;
 const secretAccessKey = import.meta.env.VITE_AWS_SECRET_ACCESS_KEY;
 const agentId = import.meta.env.VITE_BEDROCK_AGENT_ID;
-const agentAliasId = import.meta.env.VITE_BEDROCK_AGENT_ALIAS_ID;
+const agentAliasId = import.meta.env.VITE_BEDROCK_AGENT_ALIAS_ID; 
 
 const client = new BedrockAgentRuntimeClient({
   region: region,      
