@@ -19,7 +19,7 @@ class HealthScribeService:
         self.s3 = boto3.client("s3", region_name=self.region)
         
         # This should match your Amplify storage or manual bucket
-        self.bucket = os.getenv("HEALTHSCRIBE_BUCKET", "ia-digital-doctor-scribe")
+        self.bucket = "ia-digital-doctor-scribe"
         self.scribe_role_arn = os.getenv("HEALTHSCRIBE_ROLE_ARN")
 
     async def process_audio(self, audio_file: UploadFile):
