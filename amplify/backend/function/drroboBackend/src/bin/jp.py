@@ -1,4 +1,4 @@
-#!/Users/jayani/DrRobo/.venv/bin/python3.13
+#!/Users/jayani/DrRobo/venv/bin/python3.13
 
 import sys
 import json
