@@ -19,6 +19,8 @@ import { Button } from "@/components/ui/button";
 import { useClinical, Suggestion } from "@/context/ClinicalContext";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
+import { toast } from "./ui/sonner";
+import { AgentResult, Patient } from "@/types";
 
 
 const DrRoboAssistant = () => {
@@ -26,19 +28,23 @@ const DrRoboAssistant = () => {
   const [editingSuggestion, setEditingSuggestion] = useState<Suggestion | null>(null);
   const [editContent, setEditContent] = useState("");
   
-  const { 
-    isAnalyzing, 
-    suggestions, 
-    approveSuggestion, 
-    rejectSuggestion, 
-    modifySuggestion,
-    diagnosisResult
-  } = useClinical();
-
-  useEffect(() => {
-    console.log("Current Suggestions in DrRobo:", suggestions);
-    console.log("Diagnosis Result in DrRobo:", diagnosisResult);
-  }, [suggestions, diagnosisResult]);
+ const { 
+  isAnalyzing, 
+  suggestions, 
+  approveSuggestion, 
+  rejectSuggestion, 
+  modifySuggestion,
+  diagnosisResult,
+  currentPatient
+} = useClinical() as { 
+  isAnalyzing: boolean; 
+  suggestions: Suggestion[]; 
+  approveSuggestion: (id: string) => void;
+  rejectSuggestion: (id: string) => void;
+  modifySuggestion: (id: string, content: string) => void;
+  diagnosisResult: AgentResult | null; // Changed 'any' to 'AgentResult | null'
+  currentPatient: Patient | null; 
+};
 
   const getIcon = (type: string) => {
     switch (type) {
@@ -94,81 +100,75 @@ const DrRoboAssistant = () => {
   const processedSuggestions = suggestions.filter(s => s.status !== 'pending');
   
   const handlePrint = () => {
-        if (!diagnosisResult) return;
+    const finalData = suggestions.filter(s => s.status === 'approved' || s.status === 'modified');
+    
+    if (finalData.length === 0) {
+      toast.error("Please approve or modify suggestions before printing.");
+      return;
+    }
 
-        const content = `
-    Diagnosis:
-    ${diagnosisResult.diagnosis?.primary?.condition ?? "N/A"}
+    // Safely access properties now that types are defined
+    const patientName = currentPatient?.name ?? "Unknown Patient";
+    const patientID = currentPatient?.id ?? "Not Assigned";
 
-    ICD-10 Codes:
-    ${diagnosisResult.icd_codes?.map(
-      c => `${c.code} - ${c.description}`
-    ).join("\n") ?? "N/A"}
+    const content = finalData.map(s => {
+      return `[${s.type.toUpperCase()}] ${s.title}:\n${s.content}\n`;
+    }).join("\n---\n\n");
 
-    Treatment Plan:
-    ${diagnosisResult.treatment_plan?.immediate?.join("\n") ?? "N/A"}
+    const win = window.open("", "_blank");
+    if (!win) return;
 
-    Follow Up:
-    ${diagnosisResult.follow_ups?.map(
-      f => `${f.action} (${f.timeframe})`
-    ).join("\n") ?? "N/A"}
-    `;
+    win.document.write(`
+      <html>
+        <head>
+          <title>Clinical Note - ${patientName}</title>
+          <style>
+            body { font-family: 'Inter', sans-serif; padding: 40px; color: #1e293b; }
+            .meta { background: #f8fafc; padding: 15px; border-radius: 8px; margin-bottom: 30px; font-size: 14px; border: 1px solid #e2e8f0; }
+            .content-box { white-space: pre-wrap; padding: 20px; border-radius: 8px; border: 1px solid #e2e8f0; }
+          </style>
+        </head>
+        <body>
+          <h2>Consultation Record</h2>
+          <div class="meta">
+            <strong>Patient:</strong> ${patientName}<br>
+            <strong>ID:</strong> ${patientID}<br>
+            <strong>Date:</strong> ${new Date().toLocaleDateString()}
+          </div>
+          <div class="content-box">${content}</div>
+        </body>
+      </html>
+    `);
 
-        const win = window.open("", "_blank");
-        if (!win) return;
-
-        win.document.write(`
-          <html>
-            <head>
-              <title>Consultation Note</title>
-              <style>
-                body { font-family: Arial; padding: 24px; }
-                pre { white-space: pre-wrap; }
-              </style>
-            </head>
-            <body>
-              <h2>Consultation Note</h2>
-              <pre>${content}</pre>
-            </body>
-          </html>
-        `);
-
-        win.document.close();
-        win.print();
-      };
+    win.document.close();
+    win.print();
+  };
 
   const handleDownload = () => {
-        if (!diagnosisResult) return;
+    const finalData = suggestions.filter(s => s.status === 'approved' || s.status === 'modified');
+    
+    if (finalData.length === 0) {
+      toast.error("No verified data to download.");
+      return;
+    }
 
-        const content = `
-    Diagnosis:
-    ${diagnosisResult.diagnosis?.primary?.condition ?? "N/A"}
+    const patientName = currentPatient?.name ?? "Patient";
 
-    ICD-10 Codes:
-    ${diagnosisResult.icd_codes?.map(
-      c => `${c.code} - ${c.description}`
-    ).join("\n") ?? "N/A"}
+    const content = `CLINICAL CONSULTATION SUMMARY\n` +
+      `============================\n` +
+      `Patient: ${patientName}\n` +
+      `Date: ${new Date().toLocaleString()}\n\n` +
+      finalData.map(s => `[${s.type.toUpperCase()}] ${s.title}\n${s.content}`).join("\n\n---\n\n");
 
-    Treatment Plan:
-    ${diagnosisResult.treatment_plan?.immediate?.join("\n") ?? "N/A"}
-
-    Follow Up:
-    ${diagnosisResult.follow_ups?.map(
-      f => `${f.action} (${f.timeframe})`
-    ).join("\n") ?? "N/A"}
-    `;
-
-        const blob = new Blob([content], { type: "text/plain" });
-        const url = URL.createObjectURL(blob);
-
-        const a = document.createElement("a");
-        a.href = url;
-        a.download = "consultation-note.txt";
-        a.click();
-
-        URL.revokeObjectURL(url);
+    const blob = new Blob([content], { type: "text/plain" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `Consultation_${patientName.replace(/\s+/g, '_')}.txt`;
+    a.click();
+    URL.revokeObjectURL(url);
   };
-  console.log("🧠 ALL SUGGESTIONS FROM CONTEXT:", suggestions);
+
 
   return (
     <>

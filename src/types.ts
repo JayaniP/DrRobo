@@ -121,3 +121,12 @@ export interface DiagnosisResult {
   isValidated?: boolean;
   warnings?: string[]; 
 }
+
+
+export interface Patient {
+  id?: string; // Added id here
+  name: string;
+  age: number;
+  gender: string;
+  history?: string[];
+}

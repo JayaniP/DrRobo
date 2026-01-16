@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import { 
   MessageCircle, 
   Send, 
@@ -25,30 +25,24 @@ import { mapAgentResultToSuggestions } from "@/utils/mapAgentResultToSuggestions
 
 const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:8000";
 
-// Declare SpeechRecognition types for TypeScript
-interface SpeechRecognitionEvent extends Event {
-  results: SpeechRecognitionResultList;
-}
-
-interface SpeechRecognitionResultList {
-  length: number;
-  item(index: number): SpeechRecognitionResult;
-  [index: number]: SpeechRecognitionResult;
-}
-
-interface SpeechRecognitionResult {
+// Optimized Type Definitions for Web Speech API
+interface SpeechResult {
   isFinal: boolean;
-  length: number;
-  item(index: number): SpeechRecognitionAlternative;
-  [index: number]: SpeechRecognitionAlternative;
+  [index: number]: {
+    transcript: string;
+    confidence: number;
+  };
 }
 
-interface SpeechRecognitionAlternative {
-  transcript: string;
-  confidence: number;
+interface SpeechRecognitionEventCustom {
+  resultIndex: number;
+  results: {
+    length: number;
+    [index: number]: SpeechResult;
+  };
 }
 
-interface SpeechRecognitionErrorEvent extends Event {
+interface SpeechRecognitionErrorEvent {
   error: string;
 }
 
@@ -56,7 +50,7 @@ interface SpeechRecognitionInterface extends EventTarget {
   continuous: boolean;
   interimResults: boolean;
   lang: string;
-  onresult: ((event: SpeechRecognitionEvent) => void) | null;
+  onresult: ((event: SpeechRecognitionEventCustom) => void) | null;
   onerror: ((event: SpeechRecognitionErrorEvent) => void) | null;
   onend: (() => void) | null;
   start(): void;
@@ -111,55 +105,8 @@ const ConversationChat = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
-  // Initialize speech recognition
-  useEffect(() => {
-    const SpeechRecognition =
-      window.SpeechRecognition || window.webkitSpeechRecognition;
-
-    if (!SpeechRecognition) return;
-
-    const recognition = new SpeechRecognition();
-    recognition.continuous = true;
-    recognition.interimResults = true;
-    recognition.lang = "en-US";
-
-    recognition.onresult = (event) => {
-      const transcript = Array.from(event.results)
-        .map((r) => r[0].transcript)
-        .join("");
-
-      if (isVoiceToText) {
-        if (event.results[event.results.length - 1].isFinal) {
-          setNotesText((prev) => prev + " " + transcript);
-        }
-      } else {
-        if (event.results[event.results.length - 1].isFinal) {
-          addMessage(currentRole, transcript);
-          setInputText("");
-        } else {
-          setInputText(transcript);
-        }
-      }
-    };
-
-    recognition.onerror = () => {
-      setIsListening(false);
-      toast.error("Speech recognition error");
-    };
-
-    recognition.onend = () => setIsListening(false);
-
-    recognitionRef.current = recognition;
-
-    return () => recognition.stop();
-  }, [currentRole, isVoiceToText]);
-
-  const addMessage = (
-    role: "CLINICIAN" | "PATIENT",
-    content: string
-  ) => {
+ const addMessage = useCallback((role: "CLINICIAN" | "PATIENT", content: string) => {
     if (!content.trim()) return;
-
     setMessages((prev) => [
       ...prev,
       {
@@ -169,7 +116,64 @@ const ConversationChat = () => {
         timestamp: new Date()
       }
     ]);
-  };
+  }, []);
+
+  // --- SPEECH RECOGNITION INITIALIZATION ---
+  useEffect(() => {
+    const SpeechConstructor = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SpeechConstructor) return;
+
+    const recognition = new SpeechConstructor();
+    recognition.continuous = true;
+    recognition.interimResults = true;
+    recognition.lang = "en-US";
+
+    recognition.onresult = (event: SpeechRecognitionEventCustom) => {
+      let interimTranscript = "";
+      let finalTranscript = "";
+
+      // Logic: Use resultIndex to prevent the text from repeating/looping
+      for (let i = event.resultIndex; i < event.results.length; ++i) {
+        const transcriptSegment = event.results[i][0].transcript;
+        if (event.results[i].isFinal) {
+          finalTranscript += transcriptSegment;
+        } else {
+          interimTranscript += transcriptSegment;
+        }
+      }
+
+      if (isVoiceToText) {
+        if (finalTranscript) {
+          setNotesText((prev) => (prev.trim() + " " + finalTranscript.trim()).trim());
+        }
+      } else {
+        if (finalTranscript) {
+          addMessage(currentRole, finalTranscript);
+          setInputText(""); 
+        } else {
+          setInputText(interimTranscript);
+        }
+      }
+    };
+
+    recognition.onerror = (event: SpeechRecognitionErrorEvent) => {
+      if (event.error !== 'no-speech') {
+        toast.error(`Speech Error: ${event.error}`);
+        setIsListening(false);
+      }
+    };
+
+    recognition.onend = () => {
+      if (isListening && !isPaused) {
+        try { recognition.start(); } catch (e) { console.error("Restart error", e); }
+      }
+    };
+
+    recognitionRef.current = recognition;
+    return () => {
+       if (recognitionRef.current) recognitionRef.current.stop();
+    };
+  }, [currentRole, isVoiceToText, isListening, isPaused, addMessage])
 
   const handleStartConversation = () => {
     setIsConversationActive(true);
