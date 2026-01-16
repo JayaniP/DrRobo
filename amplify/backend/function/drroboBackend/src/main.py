@@ -1,5 +1,6 @@
 import os
 import sys
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi import FastAPI, Request
 from mangum import Mangum
 from typing import Dict, Any, Optional
