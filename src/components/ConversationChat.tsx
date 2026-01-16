@@ -144,7 +144,11 @@ const ConversationChat = () => {
 
       if (isVoiceToText) {
         if (finalTranscript) {
-          setNotesText((prev) => (prev.trim() + " " + finalTranscript.trim()).trim());
+          setNotesText((prev) => {
+            // This fix stops the "JSON decode error" by removing line breaks
+            const cleanSegment = finalTranscript.replace(/[\r\n\t]/g, " ").trim();
+            return (prev.trim() + " " + cleanSegment).trim();
+          });
         }
       } else {
         if (finalTranscript) {
@@ -335,7 +339,8 @@ const ConversationChat = () => {
 
       // 1. Determine which transcript to use
       const transcript = notesText.trim() || 
-        messages.map(m => `${m.role}: ${m.content}`).join("\n");
+          messages.map(m => `${m.role}: ${m.content}`).join("\n");
+   
 
       if (!transcript.trim()) {
         toast.error("No clinical data available for analysis.");
@@ -344,13 +349,14 @@ const ConversationChat = () => {
 
       // 2. Call the Bedrock Agent
       const res = await fetch(`${API_BASE}/healthscribe/agent/analyze`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          transcript,
-          patient: currentPatient ?? {},
-        }),
-      });
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            // This ensures special characters are escaped correctly for Python
+            transcript: transcript, 
+            patient: currentPatient || {}
+          }),
+        });
 
       if (!res.ok) {
         throw new Error(`Server responded with ${res.status}`);
