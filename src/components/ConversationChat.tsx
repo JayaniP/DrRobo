@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useCallback } from "react";
+import { useState, useRef, useEffect } from "react";
 import { 
   MessageCircle, 
   Send, 
@@ -25,24 +25,30 @@ import { mapAgentResultToSuggestions } from "@/utils/mapAgentResultToSuggestions
 
 const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:8000";
 
-// Optimized Type Definitions for Web Speech API
-interface SpeechResult {
+// Declare SpeechRecognition types for TypeScript
+interface SpeechRecognitionEvent extends Event {
+  results: SpeechRecognitionResultList;
+}
+
+interface SpeechRecognitionResultList {
+  length: number;
+  item(index: number): SpeechRecognitionResult;
+  [index: number]: SpeechRecognitionResult;
+}
+
+interface SpeechRecognitionResult {
   isFinal: boolean;
-  [index: number]: {
-    transcript: string;
-    confidence: number;
-  };
+  length: number;
+  item(index: number): SpeechRecognitionAlternative;
+  [index: number]: SpeechRecognitionAlternative;
 }
 
-interface SpeechRecognitionEventCustom {
-  resultIndex: number;
-  results: {
-    length: number;
-    [index: number]: SpeechResult;
-  };
+interface SpeechRecognitionAlternative {
+  transcript: string;
+  confidence: number;
 }
 
-interface SpeechRecognitionErrorEvent {
+interface SpeechRecognitionErrorEvent extends Event {
   error: string;
 }
 
@@ -50,7 +56,7 @@ interface SpeechRecognitionInterface extends EventTarget {
   continuous: boolean;
   interimResults: boolean;
   lang: string;
-  onresult: ((event: SpeechRecognitionEventCustom) => void) | null;
+  onresult: ((event: SpeechRecognitionEvent) => void) | null;
   onerror: ((event: SpeechRecognitionErrorEvent) => void) | null;
   onend: (() => void) | null;
   start(): void;
@@ -85,6 +91,7 @@ const ConversationChat = () => {
   const recognitionRef = useRef<SpeechRecognitionInterface | null>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
+  const userStoppedRef = useRef(false);
   
   const {
     currentPatient,
@@ -105,8 +112,56 @@ const ConversationChat = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
- const addMessage = useCallback((role: "CLINICIAN" | "PATIENT", content: string) => {
+  // Initialize speech recognition
+  useEffect(() => {
+    const SpeechRecognition =
+      window.SpeechRecognition || window.webkitSpeechRecognition;
+
+    if (!SpeechRecognition) return;
+
+    const recognition = new SpeechRecognition();
+    recognition.continuous = false;
+    recognition.interimResults = true;
+    recognition.lang = "en-US";
+
+    recognition.onresult = (event) => {
+      const last = event.results[event.results.length - 1];
+      const transcript = last[0].transcript;
+
+      if (!last.isFinal) {
+        setInputText(transcript);
+        return;
+      }
+
+      if (isVoiceToText) {
+          setNotesText((prev) => prev + " " + transcript);
+        } else {
+          addMessage(currentRole, transcript);
+        }
+
+        setInputText("");
+      };
+
+
+    recognition.onerror = (e) => {
+      console.error(e);
+      setIsListening(false);
+    };
+
+
+    recognition.onend = () => setIsListening(false);
+
+    recognitionRef.current = recognition;
+
+    return () => recognition.stop();
+  }, []);
+
+  const addMessage = (
+    role: "CLINICIAN" | "PATIENT",
+    content: string
+  ) => {
     if (!content.trim()) return;
+
     setMessages((prev) => [
       ...prev,
       {
@@ -116,68 +171,7 @@ const ConversationChat = () => {
         timestamp: new Date()
       }
     ]);
-  }, []);
-
-  // --- SPEECH RECOGNITION INITIALIZATION ---
-  useEffect(() => {
-    const SpeechConstructor = window.SpeechRecognition || window.webkitSpeechRecognition;
-    if (!SpeechConstructor) return;
-
-    const recognition = new SpeechConstructor();
-    recognition.continuous = true;
-    recognition.interimResults = true;
-    recognition.lang = "en-US";
-
-    recognition.onresult = (event: SpeechRecognitionEventCustom) => {
-      let interimTranscript = "";
-      let finalTranscript = "";
-
-      // Logic: Use resultIndex to prevent the text from repeating/looping
-      for (let i = event.resultIndex; i < event.results.length; ++i) {
-        const transcriptSegment = event.results[i][0].transcript;
-        if (event.results[i].isFinal) {
-          finalTranscript += transcriptSegment;
-        } else {
-          interimTranscript += transcriptSegment;
-        }
-      }
-
-      if (isVoiceToText) {
-        if (finalTranscript) {
-          setNotesText((prev) => {
-            // This fix stops the "JSON decode error" by removing line breaks
-            const cleanSegment = finalTranscript.replace(/[\r\n\t]/g, " ").trim();
-            return (prev.trim() + " " + cleanSegment).trim();
-          });
-        }
-      } else {
-        if (finalTranscript) {
-          addMessage(currentRole, finalTranscript);
-          setInputText(""); 
-        } else {
-          setInputText(interimTranscript);
-        }
-      }
-    };
-
-    recognition.onerror = (event: SpeechRecognitionErrorEvent) => {
-      if (event.error !== 'no-speech') {
-        toast.error(`Speech Error: ${event.error}`);
-        setIsListening(false);
-      }
-    };
-
-    recognition.onend = () => {
-      if (isListening && !isPaused) {
-        try { recognition.start(); } catch (e) { console.error("Restart error", e); }
-      }
-    };
-
-    recognitionRef.current = recognition;
-    return () => {
-       if (recognitionRef.current) recognitionRef.current.stop();
-    };
-  }, [currentRole, isVoiceToText, isListening, isPaused, addMessage])
+  };
 
   const handleStartConversation = () => {
     setIsConversationActive(true);
@@ -192,6 +186,7 @@ const ConversationChat = () => {
       toast.error("Speech recognition not supported in this browser");
       return;
     }
+    
     if (isListening) {
       recognitionRef.current.stop();
       setIsListening(false);
@@ -242,76 +237,93 @@ const ConversationChat = () => {
     addMessage(currentRole, inputText);
     setInputText("");
   };
+   
+  const toggleListening = async () => {
+      if (!recognitionRef.current) {
+        toast.error("Speech recognition not supported");
+        return;
+      }
 
- const toggleListening = async () => {
-  if (!recognitionRef.current) {
-    toast.error("Speech recognition not supported");
-    return;
-  }
+      // ---------- USER STOPS ----------
+      if (isListening) {
+          userStoppedRef.current = true;
 
-  if (isListening) {
-    recognitionRef.current.stop();
-    mediaRecorderRef.current?.stop(); // This triggers onstop below
-    setIsListening(false);
-    return;
-  }
+          recognitionRef.current.stop();
+          mediaRecorderRef.current?.stop();
 
-  try {
-    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-    const recorder = new MediaRecorder(stream);
-    mediaRecorderRef.current = recorder;
-    audioChunksRef.current = []; // Clear old chunks before starting
+          mediaRecorderRef.current?.stream
+            ?.getTracks()
+            .forEach(track => track.stop());
 
-    recorder.ondataavailable = (e) => {
-      if (e.data.size > 0) audioChunksRef.current.push(e.data);
-    };
+          setIsListening(false);
+          return;
+        }
 
-    // --- ADD THIS ONSTOP LOGIC ---
-    recorder.onstop = async () => {
-      const audioBlob = new Blob(audioChunksRef.current, { type: "audio/webm" });
-      
-      // If you want to trigger HealthScribe automatically when recording stops:
-      const formData = new FormData();
-      formData.append("file", audioBlob, `consult-${Date.now()}.webm`);
-
+      // ---------- USER STARTS ----------
       try {
-        toast.info("Uploading audio to AWS HealthScribe...");
-        const res = await fetch(`${API_BASE}/healthscribe/upload`, {
-          method: "POST",
-          body: formData,
-        });
-        const data = await res.json();
-        toast.success(`HealthScribe Job Started: ${data.jobName}`);
-        
-      } catch (err) {
-        toast.error("Failed to upload audio to S3");
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+
+        const recorder = new MediaRecorder(stream);
+        mediaRecorderRef.current = recorder;
+        audioChunksRef.current = [];
+
+        recorder.ondataavailable = (e) => {
+          if (e.data.size > 0) audioChunksRef.current.push(e.data);
+        };
+
+        recorder.onstop = async () => {
+          // 🚫 Ignore browser-initiated stops
+          if (!userStoppedRef.current) {
+            console.warn("Recorder stopped automatically — ignoring");
+            return;
+          }
+
+          userStoppedRef.current = false;
+
+          // 🚫 Ignore empty audio
+          if (audioChunksRef.current.length === 0) return;
+
+          const audioBlob = new Blob(audioChunksRef.current, {
+            type: "audio/webm",
+          });
+
+          audioChunksRef.current = [];
+
+          try {
+            toast.info("Uploading audio to AWS HealthScribe...");
+
+            const formData = new FormData();
+            formData.append("file", audioBlob, `consult-${Date.now()}.webm`);
+
+            const res = await fetch(`${API_BASE}/healthscribe/upload`, {
+              method: "POST",
+              body: formData,
+            });
+
+            const data = await res.json();
+            toast.success(`HealthScribe Job Started: ${data.jobName}`);
+          } catch {
+            toast.error("Failed to upload audio to S3");
+          }
+        };
+
+        recorder.start();
+
+        // 🔐 START RECOGNITION ONLY ONCE
+        recognitionRef.current.start();
+
+        setIsListening(true);
+      } catch {
+        toast.error("Microphone access denied");
       }
     };
+ 
+ const waitForHealthScribe = async (jobName: string) => {
+    const MAX_ATTEMPTS = 60; // 5 minutes
+    let attempts = 0;
 
-    recorder.start();
-    recognitionRef.current.start();
-    setIsListening(true);
-  } catch {
-    toast.error("Microphone access denied");
-  }
-};
-
- /**
- * ASYNCHRONOUS PIPELINE (High-Fidelity Mode)
- * These functions support the background processing of full-length 
- * clinical consultations via AWS HealthScribe. 
- * Currently, the 'Fast-Track' Bedrock Agent path is used for real-time demo.
- */
-  const finalizeAudioForHealthScribe = () => {
-    if (audioChunksRef.current.length === 0) return null;
-    return new Blob(audioChunksRef.current, { type: "audio/webm" });
-  };
-
-  const waitForHealthScribe = async (jobName: string) => {
-    while (true) {
-      const res = await fetch(
-        `${API_BASE}/healthscribe/status/${jobName}`
-      );
+    while (attempts < MAX_ATTEMPTS) {
+      const res = await fetch(`${API_BASE}/healthscribe/status/${jobName}`);
 
       if (!res.ok) {
         throw new Error("Failed to fetch HealthScribe status");
@@ -319,19 +331,17 @@ const ConversationChat = () => {
 
       const data = await res.json();
 
-      if (data.status === "completed") {
-        return data.clinicalNotes;
-      }
+      if (data.status === "completed") return data.clinicalNotes;
+      if (data.status === "failed") throw new Error("HealthScribe job failed");
 
-      if (data.status === "failed") {
-        throw new Error("HealthScribe job failed");
-      }
-
-      // wait 5 seconds before polling again
-      await new Promise((resolve) => setTimeout(resolve, 5000));
+      attempts++;
+      await new Promise(r => setTimeout(r, 5000));
     }
+
+    throw new Error("HealthScribe timed out");
   };
-   
+
+
   const handleAnalyze = async () => {
     try {
       setIsProcessing(true);
@@ -339,8 +349,7 @@ const ConversationChat = () => {
 
       // 1. Determine which transcript to use
       const transcript = notesText.trim() || 
-          messages.map(m => `${m.role}: ${m.content}`).join("\n");
-   
+        messages.map(m => `${m.role}: ${m.content}`).join("\n");
 
       if (!transcript.trim()) {
         toast.error("No clinical data available for analysis.");
@@ -349,14 +358,13 @@ const ConversationChat = () => {
 
       // 2. Call the Bedrock Agent
       const res = await fetch(`${API_BASE}/healthscribe/agent/analyze`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            // This ensures special characters are escaped correctly for Python
-            transcript: transcript, 
-            patient: currentPatient || {}
-          }),
-        });
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          transcript,
+          patient: currentPatient ?? {},
+        }),
+      });
 
       if (!res.ok) {
         throw new Error(`Server responded with ${res.status}`);

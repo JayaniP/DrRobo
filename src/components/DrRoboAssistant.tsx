@@ -19,8 +19,6 @@ import { Button } from "@/components/ui/button";
 import { useClinical, Suggestion } from "@/context/ClinicalContext";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
-import { toast } from "./ui/sonner";
-import { AgentResult, Patient } from "@/types";
 
 
 const DrRoboAssistant = () => {
@@ -28,23 +26,19 @@ const DrRoboAssistant = () => {
   const [editingSuggestion, setEditingSuggestion] = useState<Suggestion | null>(null);
   const [editContent, setEditContent] = useState("");
   
- const { 
-  isAnalyzing, 
-  suggestions, 
-  approveSuggestion, 
-  rejectSuggestion, 
-  modifySuggestion,
-  diagnosisResult,
-  currentPatient
-} = useClinical() as { 
-  isAnalyzing: boolean; 
-  suggestions: Suggestion[]; 
-  approveSuggestion: (id: string) => void;
-  rejectSuggestion: (id: string) => void;
-  modifySuggestion: (id: string, content: string) => void;
-  diagnosisResult: AgentResult | null; // Changed 'any' to 'AgentResult | null'
-  currentPatient: Patient | null; 
-};
+  const { 
+    isAnalyzing, 
+    suggestions, 
+    approveSuggestion, 
+    rejectSuggestion, 
+    modifySuggestion,
+    diagnosisResult
+  } = useClinical();
+
+  useEffect(() => {
+    console.log("Current Suggestions in DrRobo:", suggestions);
+    console.log("Diagnosis Result in DrRobo:", diagnosisResult);
+  }, [suggestions, diagnosisResult]);
 
   const getIcon = (type: string) => {
     switch (type) {
@@ -99,21 +93,40 @@ const DrRoboAssistant = () => {
   const pendingSuggestions = suggestions.filter(s => s.status === 'pending');
   const processedSuggestions = suggestions.filter(s => s.status !== 'pending');
   
+  const buildFinalConsultationText = () => {
+        if (!suggestions.length) return "No clinical data available.";
+
+        const approved = suggestions.filter(
+          s => s.status === "approved" || s.status === "modified"
+        );
+
+        const byType = (type: string) =>
+          approved
+            .filter(s => s.type === type)
+            .map(s => `- ${s.content}`)
+            .join("\n") || "N/A";
+
+        return `
+      Diagnosis:
+      ${byType("diagnosis")}
+
+      ICD-10 Codes:
+      ${byType("icd")}
+
+      Treatment Plan:
+      ${byType("treatment")}
+
+      Prescriptions:
+      ${byType("prescription")}
+
+      Follow Up:
+      ${byType("followup")}
+      `;
+      };
+
+
   const handlePrint = () => {
-    const finalData = suggestions.filter(s => s.status === 'approved' || s.status === 'modified');
-    
-    if (finalData.length === 0) {
-      toast.error("Please approve or modify suggestions before printing.");
-      return;
-    }
-
-    // Safely access properties now that types are defined
-    const patientName = currentPatient?.name ?? "Unknown Patient";
-    const patientID = currentPatient?.id ?? "Not Assigned";
-
-    const content = finalData.map(s => {
-      return `[${s.type.toUpperCase()}] ${s.title}:\n${s.content}\n`;
-    }).join("\n---\n\n");
+    const content = buildFinalConsultationText();
 
     const win = window.open("", "_blank");
     if (!win) return;
@@ -121,21 +134,15 @@ const DrRoboAssistant = () => {
     win.document.write(`
       <html>
         <head>
-          <title>Clinical Note - ${patientName}</title>
+          <title>Consultation Note</title>
           <style>
-            body { font-family: 'Inter', sans-serif; padding: 40px; color: #1e293b; }
-            .meta { background: #f8fafc; padding: 15px; border-radius: 8px; margin-bottom: 30px; font-size: 14px; border: 1px solid #e2e8f0; }
-            .content-box { white-space: pre-wrap; padding: 20px; border-radius: 8px; border: 1px solid #e2e8f0; }
+            body { font-family: Arial; padding: 24px; }
+            pre { white-space: pre-wrap; }
           </style>
         </head>
         <body>
-          <h2>Consultation Record</h2>
-          <div class="meta">
-            <strong>Patient:</strong> ${patientName}<br>
-            <strong>ID:</strong> ${patientID}<br>
-            <strong>Date:</strong> ${new Date().toLocaleDateString()}
-          </div>
-          <div class="content-box">${content}</div>
+          <h2>Consultation Note</h2>
+          <pre>${content}</pre>
         </body>
       </html>
     `);
@@ -145,30 +152,18 @@ const DrRoboAssistant = () => {
   };
 
   const handleDownload = () => {
-    const finalData = suggestions.filter(s => s.status === 'approved' || s.status === 'modified');
-    
-    if (finalData.length === 0) {
-      toast.error("No verified data to download.");
-      return;
-    }
-
-    const patientName = currentPatient?.name ?? "Patient";
-
-    const content = `CLINICAL CONSULTATION SUMMARY\n` +
-      `============================\n` +
-      `Patient: ${patientName}\n` +
-      `Date: ${new Date().toLocaleString()}\n\n` +
-      finalData.map(s => `[${s.type.toUpperCase()}] ${s.title}\n${s.content}`).join("\n\n---\n\n");
+    const content = buildFinalConsultationText();
 
     const blob = new Blob([content], { type: "text/plain" });
     const url = URL.createObjectURL(blob);
+
     const a = document.createElement("a");
     a.href = url;
-    a.download = `Consultation_${patientName.replace(/\s+/g, '_')}.txt`;
+    a.download = "consultation-note.txt";
     a.click();
+
     URL.revokeObjectURL(url);
   };
-
 
   return (
     <>
