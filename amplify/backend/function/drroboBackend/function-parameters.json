@@ -1,3 +1,5 @@
 {
-  "lambdaLayers": []
+  "handler": "index.handler",
+  "runtime": "python3.10",
+  "srcDir": "src"
 }

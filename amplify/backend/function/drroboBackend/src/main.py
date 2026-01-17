@@ -1,13 +1,9 @@
 import os
 import sys
-from fastapi.middleware.cors import CORSMiddleware
 from fastapi import FastAPI, Request
-from mangum import Mangum
-from typing import Dict, Any, Optional
 
 # Add the current directory to sys.path so imports work in Lambda
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
-
 app = FastAPI(title="Digital Doctor API")
 
 # 1. IMPORT THE ROUTER
@@ -39,5 +35,3 @@ async def debug_paths(request: Request, call_next):
 async def root():
     return {"message": "API is online"}
 
-# 4. Lambda Handler
-handler = Mangum(app, lifespan="off")
