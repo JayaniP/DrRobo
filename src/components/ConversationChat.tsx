@@ -17,11 +17,11 @@ import {
 import { useClinical } from "@/context/ClinicalContext";
 import { toast } from "sonner";
 import type {
-  AgentResult,
-  DiagnosisResult
+  AgentResult
 } from "@/types";
 
 import { mapAgentResultToSuggestions } from "@/utils/mapAgentResultToSuggestions";
+
 
 const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:8000";
 
@@ -92,7 +92,11 @@ const ConversationChat = () => {
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
   const userStoppedRef = useRef(false);
-  
+  const isConversationActiveRef = useRef(isConversationActive);
+  const isVoiceToTextRef = useRef(isVoiceToText);
+  const isPausedRef = useRef(isPaused);
+  const currentRoleRef = useRef(currentRole);
+    
   const {
     currentPatient,
     setAgentResult,
@@ -107,6 +111,63 @@ const ConversationChat = () => {
     ? notesText.trim().split(/\s+/).length
     : 0;
 
+  useEffect(() => {
+  const SpeechRecognition =
+    window.SpeechRecognition || window.webkitSpeechRecognition;
+
+  if (!SpeechRecognition) {
+    toast.error("Speech recognition not supported");
+    return;
+  }
+
+  const recognition = new SpeechRecognition();
+  recognition.continuous = false;
+  recognition.interimResults = false;
+  recognition.lang = "en-US";
+
+  recognition.onresult = (event) => {
+      const last = event.results[event.results.length - 1];
+      const transcript = last[0].transcript.trim();
+
+      if (!last.isFinal) return;
+
+      // 🟢 VOICE TO TEXT → NOTES
+      if (
+        isVoiceToTextRef.current &&
+        !isConversationActiveRef.current
+      ) {
+        setNotesText(prev => prev + " " + transcript);
+        return;
+      }
+
+      // 🟢 REAL-TIME CONVERSATION
+      if (
+        isConversationActiveRef.current &&
+        !isPausedRef.current
+      ) {
+        addMessage(
+          currentRoleRef.current,
+          transcript
+        );
+      }
+    };
+
+    recognition.onerror = (e) => {
+      console.error("Speech error:", e);
+    };
+
+    recognition.onend = () => {
+      setIsListening(false);
+    };
+
+    recognitionRef.current = recognition;
+
+    return () => {
+      recognition.stop();
+    };
+  }, []);
+
+
   // Scroll to bottom when messages update
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -114,50 +175,24 @@ const ConversationChat = () => {
 
   // Initialize speech recognition
   useEffect(() => {
-    const SpeechRecognition =
-      window.SpeechRecognition || window.webkitSpeechRecognition;
+        isConversationActiveRef.current = isConversationActive;
+      }, [isConversationActive]);
 
-    if (!SpeechRecognition) return;
+  useEffect(() => {
+        isVoiceToTextRef.current = isVoiceToText;
+      }, [isVoiceToText]);
 
-    const recognition = new SpeechRecognition();
-    recognition.continuous = false;
-    recognition.interimResults = true;
-    recognition.lang = "en-US";
+  useEffect(() => {
+        isPausedRef.current = isPaused;
+      }, [isPaused]);
 
-    recognition.onresult = (event) => {
-      const last = event.results[event.results.length - 1];
-      const transcript = last[0].transcript;
+  useEffect(() => {
+        currentRoleRef.current = currentRole;
+      }, [currentRole]);
 
-      if (!last.isFinal) {
-        setInputText(transcript);
-        return;
-      }
-
-      if (isVoiceToText) {
-          setNotesText((prev) => prev + " " + transcript);
-        } else {
-          addMessage(currentRole, transcript);
-        }
-
-        setInputText("");
-      };
-
-
-    recognition.onerror = (e) => {
-      console.error(e);
-      setIsListening(false);
-    };
-
-
-    recognition.onend = () => setIsListening(false);
-
-    recognitionRef.current = recognition;
-
-    return () => recognition.stop();
-  }, []);
 
   const addMessage = (
-    role: "CLINICIAN" | "PATIENT",
+    role: 'CLINICIAN' | 'PATIENT',
     content: string
   ) => {
     if (!content.trim()) return;
@@ -173,41 +208,35 @@ const ConversationChat = () => {
     ]);
   };
 
-  const handleStartConversation = () => {
+  const handleStartConversation = async () => {
     setIsConversationActive(true);
     setIsVoiceToText(false);
     setIsPaused(false);
+
+    if (!isListening) {
+      await toggleListening();
+    }
+
     toast.success("Real-time conversation started");
   };
 
   const handleVoiceToText = async () => {
+    setIsConversationActive(false);
     setIsVoiceToText(true);
+    setIsPaused(false);
+
     if (!recognitionRef.current) {
       toast.error("Speech recognition not supported in this browser");
       return;
     }
-    
-    if (isListening) {
-      recognitionRef.current.stop();
-      setIsListening(false);
-    } else {
-      try {
-        await navigator.mediaDevices.getUserMedia({ audio: true });
-        recognitionRef.current.start();
-        setIsListening(true);
-        toast.info("Voice to text active. Speak to add notes...");
-      } catch (err) {
-        toast.error("Microphone access denied");
-      }
+
+    if (!isListening) {
+      await toggleListening();
+      toast.info("Voice to text active. Speak to add notes...");
     }
   };
 
   const handlePauseConversation = () => {
-    if (isListening) {
-      recognitionRef.current?.stop();
-      mediaRecorderRef.current?.pause?.();
-      setIsListening(false);
-    }
     setIsPaused(true);
     toast.info("Conversation paused");
   };
@@ -219,24 +248,21 @@ const ConversationChat = () => {
 
   const handleStopConversation = () => {
     if (isListening) {
-      recognitionRef.current?.stop();
-      mediaRecorderRef.current?.stop();
-      setIsListening(false);
+      toggleListening();
     }
 
     setIsConversationActive(false);
-    setIsPaused(false);
     setIsVoiceToText(false);
+    setIsPaused(false);
 
     toast.info("Conversation stopped");
   };
 
-
   const handleSendMessage = () => {
-    if (!inputText.trim()) return;
-    addMessage(currentRole, inputText);
-    setInputText("");
-  };
+      if (!inputText.trim()) return;
+      addMessage(currentRole, inputText);
+      setInputText("");
+    };
    
   const toggleListening = async () => {
       if (!recognitionRef.current) {
@@ -272,7 +298,6 @@ const ConversationChat = () => {
         };
 
         recorder.onstop = async () => {
-          // 🚫 Ignore browser-initiated stops
           if (!userStoppedRef.current) {
             console.warn("Recorder stopped automatically — ignoring");
             return;
@@ -280,7 +305,6 @@ const ConversationChat = () => {
 
           userStoppedRef.current = false;
 
-          // 🚫 Ignore empty audio
           if (audioChunksRef.current.length === 0) return;
 
           const audioBlob = new Blob(audioChunksRef.current, {
