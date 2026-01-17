@@ -3,7 +3,6 @@ from api.healthscribe.router import router as healthscribe_router
 
 app = FastAPI(title="Digital Doctor API")
 
-# Router already has prefix="/healthscribe"
 app.include_router(healthscribe_router)
 print("✅ HealthScribe Router Loaded")
 
